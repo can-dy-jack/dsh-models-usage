@@ -35,7 +35,7 @@ const root = await get('/')
 const row = /{"id":"@local\/dsh-models-usage","url":"([^"]+)"[^}]*"rev":"([^"]+)"/.exec(root.text)
 if (row === null) throw new Error('the bundle is not in the live boot graph')
 const served = await get('/' + row[1])
-const local = readFileSync(new URL('client.js', workspace), 'utf8')
+const local = readFileSync(new URL('lib/client.js', workspace), 'utf8')
 
 console.log('live rev        :', row[2])
 console.log('served bytes    :', served.status, served.text.length)

@@ -86,7 +86,7 @@ globalThis.window = { __ModuleLoader__: { load: (entry) => { captured = entry } 
 
 /* ── load the plugin ───────────────────────────────────────────────────── */
 
-new Function(readFileSync(new URL('client.js', new URL('../', import.meta.url)), 'utf8'))()
+new Function(readFileSync(new URL('lib/client.js', new URL('../', import.meta.url)), 'utf8'))()
 const plugin = captured.factory((id) => {
   if (id === 'react') return React
   throw new Error('unexpected require: ' + id)

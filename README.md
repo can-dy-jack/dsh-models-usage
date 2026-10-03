@@ -12,9 +12,29 @@ DeepSeek Harness 的组合插件（Host + Web Client 双半）：把**当前模�
 
 余额永远是**服务商账户级**的，不是模型级：模型 id 只是价格/路由事实，钱包属于它背后的账号。
 
+## 开发
+
+源码在 `src/`（TypeScript），构建产物在 `lib/`（esbuild 转译，不进 git）：
+
+```sh
+npm install        # 首次：装 esbuild / typescript / dsh-tools 类型
+npm run build      # src/*.ts → lib/index.js + lib/client.js
+npm run dev        # 同上，watch 模式
+npm run typecheck  # tsc --noEmit
+```
+
+`src/payload.ts` 是 Host 半与浏览器半共享的载荷契约，`src/shared.ts` 是共享的
+运行时 guard；两半经 esbuild **bundle** 成单文件，相对路径 import 随意用。
+唯一红线：`lib/client.js` 以 script 方式喂给 `window.__ModuleLoader__`，产物里
+绝不能残留 `import`/`export` 或裸包名（故构建为 iife 格式）。UI 组件写 TSX：
+classic transform 编为 `React.createElement`，`React` 解析到 `client/react.ts`
+的宿主共享实例——不要切 `react-jsx` 自动运行时，那会引入 `react/jsx-runtime`
+裸包名。
+
 ## 安装
 
-侧边栏 **Plugins → Add plugin**，填入本目录的绝对路径：
+先执行 `npm run build` 产出 `lib/`，然后侧边栏 **Plugins → Add plugin**，填入本目录的
+绝对路径：
 
 ```
 /Users/chenkeheng/project-code/dsh-models-usage
@@ -26,28 +46,27 @@ DeepSeek Harness 的组合插件（Host + Web Client 双半）：把**当前模�
 
 插件管理器把本地路径包以**硬链接**方式复制进 profile
 （`$DSH_HOME/profiles/<p>/node_modules/@local/dsh-models-usage/`）。用编辑器/工具
-「新建文件再替换」的写法改 `client.js` 会生成新 inode，**硬链接断开**，于是副本永远
+「新建文件再替换」的写法改文件会生成新 inode，**硬链接断开**，于是副本永远
 停在安装那一刻——宿主一直下发旧代码，**重启客户端也不会变**。
 
-判断与修复：
+判断与修复（改完 `src/` 先 `npm run build`，再同步 `lib/`）：
 
 ```sh
-# 副本与工作区是否一致
-for f in client.js index.js package.json; do
-  cmp -s "$f" "$HOME/.dsh/profiles/desktop/node_modules/@local/dsh-models-usage/$f" \
-    && echo "$f same" || echo "$f DIFFERS"
+P="$HOME/.dsh/profiles/desktop/node_modules/@local/dsh-models-usage"
+for f in lib/client.js lib/index.js package.json; do
+  cmp -s "$f" "$P/$f" && echo "$f same" || echo "$f DIFFERS"
 done
 
+mkdir -p "$P/lib" && cp lib/index.js lib/client.js "$P/lib/" && cp package.json "$P/"
 # 同步后宿主会监听到变化并给客户端模块换一个新 rev（无需重启宿主）
-cp client.js index.js package.json \
-   "$HOME/.dsh/profiles/desktop/node_modules/@local/dsh-models-usage/"
 ```
 
 （或每次改完在插件页卸载后重新安装。）
 
 > 本 bundle 声明 `@local/dsh-models-usage`，`cordis.patch.yml` 插入的 row id 是
-> `models-usage`。它是 host+client 双半插件：node 半在 Host 进程负责采集与查询，
-> `dsh.client` 声明让浏览器半在 Web GUI 挂载 UI。
+> `models-usage`。它是 host+client 双半插件：`lib/index.js`（编自 `src/index.ts`）
+> 在 Host 进程负责采集与查询，`dsh.client` 声明让 `lib/client.js`（编自
+> `src/client.ts`）在 Web GUI 挂载 UI。
 
 ### ⚠️ 为什么必须声明 `peerDependencies`
 
@@ -59,7 +78,9 @@ DSH 的运行时解析层按模块所在目录分层：**profile 目录内的包
 
 所以软链插件只要 import 了任何 `@deepseek-ai/*`，就必须把它写进 `peerDependencies`，
 否则会出现 `did not activate ... failed to import`（Node 原生解析找不到该包）。
-本包的 `index.js` 只 import 一个 `@deepseek-ai/dsh-tools`，也已对应声明。
+本包的 `src/index.ts` 只 import 一个 `@deepseek-ai/dsh-tools`，也已对应声明
+（同时作为 devDependency 钉在 `0.2.0-rc.2`，仅为取 `defineTool` 的类型，
+`--legacy-peer-deps` 安装以免拖入整棵 peer 树）。
 `autoInstallPeers: false` 不会真的去安装它们——声明只用于解析路由。
 
 ## 使用

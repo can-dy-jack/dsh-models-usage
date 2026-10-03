@@ -6,7 +6,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 
 const root = new URL('../', import.meta.url)
-const source = readFileSync(new URL('index.js', root), 'utf8')
+const source = readFileSync(new URL('lib/index.js', root), 'utf8')
   .replace(/^import \{ defineTool \}.*$/m, 'const defineTool = (options) => options')
 const generated = new URL('.scratch/host-under-test.mjs', root)
 writeFileSync(generated, source)

@@ -1,17 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" role="img" aria-label="Model usage and balance">
-  <!-- The list card's bottom-right corner is notched by the coin: the mask clears
-       a ring of space so the two shapes never touch. -->
+  <!-- Two stacked coins: the front one carries the model sparkle, the back one is
+       notched by the mask so a ring of space keeps the two outlines apart. -->
   <mask id="dsh-models-usage-gap" maskUnits="userSpaceOnUse" x="0" y="0" width="24" height="24">
     <rect x="0" y="0" width="24" height="24" fill="#fff"/>
-    <circle cx="17.25" cy="16.75" r="5.75" fill="#000"/>
+    <circle cx="9" cy="15" r="8.35" fill="#000"/>
   </mask>
-  <g mask="url(#dsh-models-usage-gap)" stroke="#5B6CFF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-    <rect x="2.5" y="3.75" width="19" height="13.5" rx="3"/>
-    <path d="M6.4 8.3h6.4"/>
-    <path d="M6.4 11.3h4"/>
-  </g>
   <g stroke="#5B6CFF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-    <circle cx="17.25" cy="16.75" r="4.35"/>
-    <circle cx="17.25" cy="16.75" r="2.26"/>
+    <circle mask="url(#dsh-models-usage-gap)" cx="15.5" cy="8.5" r="6"/>
+    <circle cx="9" cy="15" r="6.25"/>
+    <path fill="#5B6CFF" stroke-width="1" d="M9 11.4Q9.45 14.55 12.6 15Q9.45 15.45 9 18.6Q8.55 15.45 5.4 15Q8.55 14.55 9 11.4Z"/>
   </g>
 </svg>
