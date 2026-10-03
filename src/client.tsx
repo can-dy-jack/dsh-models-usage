@@ -1,9 +1,8 @@
 /**
  * dsh-models-usage — browser half (entry).
  *
- * Registers three surfaces over data the Host computes:
+ * Registers two surfaces over data the Host computes:
  *   - `sidebar.panellist` + `main`              → 左侧栏入口 + 中央主面板（模型清单与余额页）
- *   - `conversation.session.header.utilities`   → 会话顶栏余额徽章
  *   - `conversation.chat.commandview`           → 隐藏自身刷新产生的命令行
  *
  * The Host half is reached through the built-in `commands` Remote namespace, so
@@ -23,16 +22,17 @@
  *   format.ts    currency/amount/model-meta formatting
  *   session.ts   active-session resolution
  *   data.ts      commands-Remote reader + payload hook
- *   ui/          TSX components (chip, balance, models, card, panel, icon)
+ *   filter.ts    pure search/capability projections + instance filter state
+ *   ui/          TSX components (balance, filters, models, card, panel, icon)
  */
 
 import { initReact, React } from './client/react'
 import { ensureStyle } from './client/css'
 import { createReader } from './client/data'
+import { createFilterStore } from './client/filter'
 import { isRecord } from './shared'
 import { activeLanguage, translate } from './client/i18n'
 import { sessionIdFromProps } from './client/session'
-import { UsageChip } from './client/ui/chip'
 import { PanelIcon } from './client/ui/icon'
 import { ModelsUsagePanel } from './client/ui/panel'
 import type { ClientContext, ModuleRequire, SessionRow, SessionStore } from './client/context'
@@ -45,15 +45,6 @@ window.__ModuleLoader__.load({
 
     /** One id shared by the sidebar entry and the main panel it opens. */
     const PANEL_ID = 'models-usage'
-
-    /** Select this plugin's main panel; the shell ignores an unknown id. */
-    function openPanel(ctx: ClientContext) {
-      try {
-        ctx.layout.selectPanel(PANEL_ID)
-      } catch {
-        /* the layout service is optional; the entry still works when it is absent */
-      }
-    }
 
     /**
      * Open the host Settings modal directly on one section (default: models).
@@ -77,10 +68,11 @@ window.__ModuleLoader__.load({
       }
     }
 
-    const inject = ['slots', 'remote', 'remote.commands', 'layout']
+    const inject = ['slots', 'remote', 'remote.commands']
 
     function apply(ctx: ClientContext) {
       const read = createReader(ctx)
+      const filters = createFilterStore()
 
       // Hide the `/dsh-models-usage ...` rows this plugin's own refreshes append.
       ctx.slots.inject('conversation.chat.commandview', () => ctx.slots.register(
@@ -112,18 +104,13 @@ window.__ModuleLoader__.load({
             }, 5000)
             return () => clearInterval(timer)
           }, [])
-          return <ModelsUsagePanel read={read} sessionId={sessionId} lang={lang} diag={diag} openSettings={() => openSettingsSection(ctx)} />
+          return <ModelsUsagePanel read={read} filters={filters} sessionId={sessionId} lang={lang} diag={diag} openSettings={() => openSettingsSection(ctx)} />
         },
       ))
 
       ctx.slots.inject('sidebar.panellist', () => ctx.slots.register(
         { name: 'sidebar.panellist', id: PANEL_ID, order: 6, label: translate(activeLanguage(), 'nav') },
         PanelIcon,
-      ))
-
-      ctx.slots.inject('conversation.session.header.utilities', () => ctx.slots.register(
-        { name: 'conversation.session.header.utilities', id: 'models-usage', order: 11, label: translate(activeLanguage(), 'nav') },
-        (props) => <UsageChip read={read} sessionId={sessionIdFromProps(props)} open={() => openPanel(ctx)} />,
       ))
     }
 

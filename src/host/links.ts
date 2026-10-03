@@ -26,6 +26,9 @@ export function hostOf(baseURL: unknown): string | undefined {
 /** Console/usage page a user can open when no balance endpoint exists. */
 export function consoleLink(providerId: string, baseURL: string | undefined): string | undefined {
   const host = hostOf(baseURL)
+  if (kimiUsageURL(providerId, baseURL) !== undefined) {
+    return host === 'api.kimi.ai' ? 'https://www.kimi.ai/code/console' : 'https://www.kimi.com/code/console'
+  }
   if (host !== undefined) {
     if (host.endsWith('volces.com')) return 'https://console.volcengine.com/ark'
     if (host === 'openrouter.ai') return 'https://openrouter.ai/settings/credits'
@@ -40,8 +43,29 @@ export function consoleLink(providerId: string, baseURL: string | undefined): st
 
 export type BalanceTarget =
   | { kind: 'account' }
-  | { kind: 'deepseek' | 'openrouter'; url: string }
+  | { kind: 'deepseek' | 'openrouter' | 'kimi-coding'; url: string }
   | { kind: 'unsupported' }
+
+/** Kimi Code supports OpenAI (/coding/v1) and Anthropic (/coding) bases. */
+export function kimiUsageURL(providerId: string, baseURL: string | undefined): string | undefined {
+  if (baseURL === undefined) {
+    return providerId === 'kimi-coding' ? 'https://api.kimi.com/coding/v1/usages' : undefined
+  }
+  try {
+    const url = new URL(baseURL)
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return undefined
+    const path = url.pathname.replace(/\/+$/, '')
+    const official = (url.hostname === 'api.kimi.com' || url.hostname === 'api.kimi.ai')
+      && /^\/coding(?:\/v1)?$/.test(path)
+    if (providerId !== 'kimi-coding' && !official) return undefined
+    url.pathname = path + (path.endsWith('/v1') ? '/usages' : '/v1/usages')
+    url.search = ''
+    url.hash = ''
+    return url.href
+  } catch {
+    return undefined
+  }
+}
 
 /** Which balance endpoint, if any, belongs to one provider route. */
 export function balanceTarget(providerId: string, baseURL: string | undefined): BalanceTarget {
@@ -51,6 +75,8 @@ export function balanceTarget(providerId: string, baseURL: string | undefined): 
     return { kind: 'deepseek', url: `${originOf(baseURL) ?? 'https://api.deepseek.com'}/user/balance` }
   }
   if (host === 'openrouter.ai') return { kind: 'openrouter', url: 'https://openrouter.ai/api/v1/credits' }
+  const kimiURL = kimiUsageURL(providerId, baseURL)
+  if (kimiURL !== undefined) return { kind: 'kimi-coding', url: kimiURL }
   return { kind: 'unsupported' }
 }
 

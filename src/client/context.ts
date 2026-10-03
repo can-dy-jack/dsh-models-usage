@@ -43,5 +43,4 @@ export interface ClientContext {
       execute(sessionId: string, line: string, submittedAttachments: unknown[], signal?: AbortSignal): Promise<unknown>
     }
   }
-  layout: { selectPanel(id: string): void }
 }

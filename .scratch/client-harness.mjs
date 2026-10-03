@@ -176,9 +176,11 @@ const check = (label, actual, expected) => {
 }
 
 let allOk = true
-allOk = check('collapsed model rows', countByClass(tree, 'dmu-model'), 6) && allOk
-const more = findByClass(tree, 'dmu-more')
-allOk = check('"show all" control present', more !== null, true) && allOk
+allOk = check('cards show no model rows', countByClass(tree, 'dmu-model'), 0) && allOk
+const more = findByClass(tree, 'dmu-modelsTrigger')
+allOk = check('model count opens the dialog', more !== null, true) && allOk
+allOk = check('model count', findByClass(more, 'dmu-modelCount')?.children[0], 12) && allOk
+allOk = check('count announces a dialog', more?.props['aria-haspopup'], 'dialog') && allOk
 allOk = check('modal closed initially', findByClass(tree, 'dmu-modal'), null) && allOk
 console.log('       button text:', JSON.stringify(more?.children?.join?.('') ?? more?.children ?? ''))
 
@@ -189,8 +191,8 @@ tree = pass(React.createElement(main.component, props))
 const dialog = findByClass(tree, 'dmu-modal')
 allOk = check('modal opened', dialog !== null, true) && allOk
 allOk = check('modal role', dialog?.props?.role, 'dialog') && allOk
-// the card keeps its collapsed preview behind the mask, so count inside the dialog body
 allOk = check('modal rows = all models', countByClass(findByClass(tree, 'dmu-modalBody'), 'dmu-model'), 12) && allOk
+allOk = check('all rows are inside the modal', countByClass(tree, 'dmu-model'), 12) && allOk
 allOk = check('mask layer present', findByClass(tree, 'dmu-mask') !== null, true) && allOk
 
 /* structure: the two fields of a row are stacked boxes, so neither can overlap */
@@ -218,7 +220,7 @@ overlay = findByClass(tree, 'dmu-overlay')
 overlay.props.onMouseDown({ target: overlay, currentTarget: overlay })
 tree = pass(React.createElement(main.component, props))
 allOk = check('backdrop click closes', findByClass(tree, 'dmu-modal'), null) && allOk
-allOk = check('back to collapsed rows', countByClass(tree, 'dmu-model'), 6) && allOk
+allOk = check('cards still show no rows after closing', countByClass(tree, 'dmu-model'), 0) && allOk
 
 /* the header's settings entry jumps straight into Settings → models */
 const buttons = []
@@ -232,11 +234,11 @@ allOk = check('opens the models section', settingsCalls.join(','), 'models') && 
 const icon = registrations.find((r) => r.slot === 'sidebar.panellist').component
 const iconTree = pass(React.createElement(icon, { size: 20 }))
 allOk = check('icon is an svg at the asked size', iconTree.type + '/' + iconTree.props.width, 'svg/20') && allOk
-allOk = check('icon parts (mask, card, coin)', (iconTree.children ?? []).length, 3) && allOk
-const maskedCard = iconTree.children[1]
-const coin = iconTree.children[2]
-allOk = check('card has frame + 2 rows', (maskedCard.children ?? []).length, 3) && allOk
-allOk = check('card is notched by a mask', typeof maskedCard.props.mask, 'string') && allOk
-allOk = check('coin has rim + face', (coin.children ?? []).length, 2) && allOk
+allOk = check('icon parts (mask, coins)', (iconTree.children ?? []).length, 2) && allOk
+const coins = iconTree.children[1]
+allOk = check('coins have back + front + sparkle', (coins.children ?? []).length, 3) && allOk
+allOk = check('back coin is notched by a mask', typeof coins.children[0].props.mask, 'string') && allOk
+allOk = check('front coin and sparkle', coins.children[1].type + '/' + coins.children[2].type, 'circle/path') && allOk
 
 console.log(allOk ? '\nall client checks pass' : '\nFAILURES')
+if (!allOk) process.exitCode = 1

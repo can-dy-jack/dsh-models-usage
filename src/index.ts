@@ -50,13 +50,18 @@ export function apply(ctx: PluginContext, config: unknown) {
   ctx.commands.register({
     name: COMMAND_NAME,
     description: '列出当前模型列表中的服务商与模型，并查询可获得的余额信息。',
-    input: { hint: 'summary | detail | refresh' },
+    input: { hint: 'summary | detail | refresh [provider=<id>]' },
     recordInput: false,
     handler: async (invocation) => {
-      const raw = String(invocation.rawInput ?? '').trim().toLowerCase()
-      const detail = raw !== 'summary'
       try {
-        const payload = await payloadFor(detail, undefined)
+        const args = String(invocation.rawInput ?? '').trim().split(/\s+/).filter(Boolean)
+        const modes = args.map((arg) => arg.toLowerCase())
+        const providerArgs = args.filter((arg) => arg.startsWith('provider='))
+        if (providerArgs.length > 1 || args.some((arg) => !['summary', 'detail', 'refresh'].includes(arg.toLowerCase()) && !arg.startsWith('provider='))) {
+          throw new Error('用法: summary | detail | refresh [provider=<id>]')
+        }
+        const providerId = providerArgs.length === 0 ? undefined : decodeURIComponent(providerArgs[0].slice('provider='.length))
+        const payload = await payloadFor(!modes.includes('summary'), undefined, modes.includes('refresh'), providerId)
         return { kind: 'success', text: JSON.stringify(payload) }
       } catch (error) {
         return { kind: 'error', text: `采集模型清单失败: ${error instanceof Error ? error.message : String(error)}` }

@@ -9,11 +9,12 @@ TypeScript 源码（`src/`）→ esbuild 转译产物（`lib/`，gitignored）�
 | 文件 | 作用 |
 | --- | --- |
 | `src/index.ts` | Host 半入口：导出 `name`/`inject`/`apply`，注册 `/dsh-models-usage` 命令与 `models_balance` 工具，组装 `HostEnv` 交给 `createPayloadLoader`。 |
-| `src/host/` | Host 半按职责拆分：`context.ts`（服务结构接口 + `ServiceLookup`/`createServiceLookup`）、`options.ts`（常量 + config 契约）、`links.ts`（控制台链接/余额端点/排序）、`net.ts`（子进程 JSON 传输 + fetch 回退）、`settings.ts`（settings 行与路径取值）、`models.ts`（路由枚举 + 模型目录 + resolveModelInfo 富化）、`credentials.ts`（凭据探测与密钥解析）、`balance.ts`（账户/服务商余额）、`collect.ts`（逐 provider 采集 + 15s 缓存）。 |
-| `src/client.tsx` | 浏览器半入口：`window.__ModuleLoader__.load` 工厂内 `initReact` + `ensureStyle`，然后 `apply` 注册 `sidebar.panellist`+`main`、`conversation.session.header.utilities`、`conversation.chat.commandview` 四个槽位注入。 |
-| `src/client/` | 浏览器半按职责拆分：`context.ts`（loader + `ClientContext`/`SlotProps`/`SessionStore`）、`react.ts`（共享 React 单例，`initReact` 后各模块用 live binding 取 `React`/`h`）、`css.ts`、`i18n.ts`、`format.ts`、`session.ts`（活动会话解析）、`data.ts`（commands-Remote reader + `usePayload`）、`ui/`（TSX 组件：chip=顶栏徽章、balance、models=行+弹窗、card=服务商卡、panel=主面板、icon）。 |
+| `src/host/` | Host 半按职责拆分：`context.ts`（服务结构接口 + `ServiceLookup`/`createServiceLookup`）、`options.ts`（常量 + config 契约）、`links.ts`（控制台链接/余额端点/排序）、`net.ts`（子进程 JSON 传输 + fetch 回退）、`settings.ts`（settings 行与路径取值）、`models.ts`（路由枚举 + 模型目录 + resolveModelInfo 富化）、`credentials.ts`（凭据探测与密钥解析）、`balance.ts`（账户/服务商余额）、`collect.ts`（逐 provider 采集 + 完整载荷缓存/并发合并）。 |
+| `src/client.tsx` | 浏览器半入口：`window.__ModuleLoader__.load` 工厂内 `initReact` + `ensureStyle`，然后 `apply` 注册 `sidebar.panellist`+`main`、`conversation.chat.commandview` 三个槽位注入。 |
+| `src/client/` | 浏览器半按职责拆分：`context.ts`（loader + `ClientContext`/`SlotProps`/`SessionStore`）、`react.ts`（共享 React 单例，`initReact` 后各模块用 live binding 取 `React`/`h`）、`css.ts`、`i18n.ts`、`format.ts`、`session.ts`（活动会话解析）、`data.ts`（commands-Remote reader + `usePayload`）、`filter.ts`（纯搜索/能力筛选 + 插件实例筛选状态）、`ui/`（TSX 组件：balance、filters=共享筛选控件、models=行+弹窗、card=服务商卡、panel=主面板、icon）。 |
 | `src/payload.ts` | 两半共享的载荷类型契约（`UsagePayload`/`ProviderEntry`/`BalanceInfo`…），type alias 而非 interface，保持对 `JsonValue` 可赋值。 |
 | `src/shared.ts` | `isRecord`/`errorText`/`asString`（两半 bundle 内共享）。 |
+| `src/cache.ts` | 两半共享的 60s 缓存/15s 重试策略、summary 投影、查询失败时保留旧余额。前端缓存属于插件实例，切换面板/会话不清空；`refresh` 绕过缓存。 |
 | `tools/build.mjs` | esbuild **bundle**：`src/index.ts`→`lib/index.js`（node, esm, `external: @deepseek-ai/*`）、`src/client.ts`→`lib/client.js`（browser, **iife**——产物以 script 方式执行，绝不能残留 import/export）。`--watch` 可用。 |
 | `tsconfig.json` | 只做 `tsc --noEmit`（strict）；产物由 esbuild 出。 |
 | `cordis.patch.yml` | bundle patch：向 profile roster 插入 `id: models-usage` 行。 |
@@ -47,7 +48,9 @@ TSX 用 classic transform（`React.createElement`/`React.Fragment`），`React`
   `~/.dsh/profiles/<p>/node_modules/@local/dsh-models-usage/`。「写新文件再替换」
   （很多编辑器和 `edit` 工具的默认行为）会断开硬链接，副本停在旧版本。
   改完 `src/` 必须 `npm run build` 再把 `lib/` + `package.json` 同步进副本
-  （README 有 `cmp`/`cp` 循环）；宿主监听变化后自动发新 rev，无需重启。
+  （README 有 `cmp`/`cp` 循环）。客户端脚本的 rev 与 Host 模块加载是两回事：
+  Desktop Host 会缓存 `lib/index.js`，改动 Host 接口后必须重启 Harness；
+  仅重新加载客户端或开关插件可能仍调用旧接口。单供应商刷新应实际验证返回载荷只有目标服务商。
 - **`peerDependencies` 不可删**：本地路径安装走 `link:` 软链 → `linked` 解析分层，
   只拦截 `peerDependencies` 里声明过的 `@deepseek-ai/*` 包名。删掉会
   `failed to import`。
@@ -75,15 +78,15 @@ TSX 用 classic transform（`React.createElement`/`React.Fragment`），`React`
 ```sh
 node .scratch/harness.mjs          # 用 mock Cordis 服务加载 lib/index.js，打印完整 JSON 载荷
 node .scratch/client-harness.mjs   # 用假 ModuleLoader+React shim 加载 lib/client.js，断言槽位渲染
+node .scratch/cache-harness.mjs    # mock 服务/Remote/时钟验证缓存、并发、过期、强制刷新与失败退避
+node .scratch/filter-harness.mjs   # 纯筛选函数 + 实际 client bundle 验证搜索、弹窗、条件保留与请求次数
 node .scratch/verify.mjs [marker]  # 对比宿主实际下发的 client.js 与工作区 lib/ 是否一致（需宿主在跑）
 ```
 
 `verify.mjs` 从 `~/.dsh/.credentials.yaml` 读 browser-session grant 伪造 cookie
 （secret 不打印），`DSH_WEB_URL`/`DSH_HOME` 可覆盖默认值。
 
-注意：`client-harness.mjs` 的图标断言（`icon parts`/`card is notched`/`coin has rim`）
-是旧的图标结构（mask+card+coin），现图标为 mask+g 两子节点——这三项失败是
-**测试落后**，非回归。
+`client-harness.mjs` 的图标断言已对应当前 mask+g 两子节点结构（背面币、正面币、星芒）。
 
 ## 安装（用户侧）
 

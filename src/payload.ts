@@ -53,14 +53,31 @@ export type BalanceStatus =
   | 'unavailable'
   | 'not-signed-in'
 
+/** Account quota; the API does not promise a token/request unit for counts. */
+export type QuotaWindow = {
+  id: string
+  name?: string
+  windowSeconds?: number
+  usedPercent: number
+  remainingPercent: number
+  resetAt?: string
+  limit?: number
+  used?: number
+  remaining?: number
+}
+
 export type BalanceInfo = {
   status: BalanceStatus
+  /** Card balance/status read time, preserved when a failed refresh retains it. */
+  fetchedAt?: string
+  refreshError?: string
   message?: string
   link?: string
   endpoint?: string
   isAvailable?: boolean
   wallets?: Wallet[]
   bonusWallets?: Wallet[]
+  quotas?: QuotaWindow[]
 }
 
 export type ProviderEntry = {
@@ -84,6 +101,8 @@ export type UsagePayload = {
   command: string
   detail: boolean
   fetchedAt: string
+  /** Remaining Host freshness at response time; avoids renewing an older cache. */
+  cacheRemainingMs?: number
   providers: ProviderEntry[]
   counts: {
     providers: number

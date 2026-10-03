@@ -5,9 +5,9 @@ DeepSeek Harness 的组合插件（Host + Web Client 双半）：把**当前模�
 
 ## 它能回答什么
 
-- 现在的模型列表里到底有哪些 provider / model？（含是否已激活、baseURL、协议、凭据状态）
+- 现在的模型列表里到底有哪些 provider / model？（含是否已激活、baseURL、协议、缺少凭据提示）
 - 每个模型的上下文窗口、最大输出、输入模态（text/image）、可用的 reasoning effort。
-- 每个服务商的余额：DeepSeek 开放平台、DeepSeek 账号走官方接口；火山方舟等未提供
+- 每个服务商的余额或额度：DeepSeek 开放平台、DeepSeek 账号、Kimi Code 走官方接口；火山方舟等未提供
   「用模型密钥查余额」接口的服务商会被**明确标注为不支持**并给出控制台入口，而不是伪造一个 0。
 
 余额永远是**服务商账户级**的，不是模型级：模型 id 只是价格/路由事实，钱包属于它背后的账号。
@@ -30,6 +30,13 @@ npm run typecheck  # tsc --noEmit
 classic transform 编为 `React.createElement`，`React` 解析到 `client/react.ts`
 的宿主共享实例——不要切 `react-jsx` 自动运行时，那会引入 `react/jsx-runtime`
 裸包名。
+
+Kimi Code 的独立验证：`node .scratch/kimi-harness.mjs`，覆盖接口格式、凭据传输、
+错误响应、载荷缓存和中英文渲染；`node .scratch/kimi-live.mjs` 可使用已有
+`KIMI_CODING_API_KEY` 只读验证真实接口（不打印密钥）。
+
+缓存行为验证：`node .scratch/cache-harness.mjs`，覆盖两端请求合并、有效期、切换面板/
+会话、强制刷新、失败退避、旧余额保留、订阅清理和调用取消。
 
 ## 安装
 
@@ -63,6 +70,10 @@ mkdir -p "$P/lib" && cp lib/index.js lib/client.js "$P/lib/" && cp package.json 
 
 （或每次改完在插件页卸载后重新安装。）
 
+若安装目录是指向工作区的软链接，构建产物已直接共享，无需复制。
+客户端产物一致也不代表 Host 已加载新模块：当前 Desktop profile 的宿主会缓存模块，
+重新开关插件仍可能复用旧代码；面板刷新后仍是旧行为时，重启一次 Harness 再验证。
+
 > 本 bundle 声明 `@local/dsh-models-usage`，`cordis.patch.yml` 插入的 row id 是
 > `models-usage`。它是 host+client 双半插件：`lib/index.js`（编自 `src/index.ts`）
 > 在 Host 进程负责采集与查询，`dsh.client` 声明让 `lib/client.js`（编自
@@ -86,19 +97,67 @@ DSH 的运行时解析层按模块所在目录分层：**profile 目录内的包
 ## 使用
 
 - **主界面**：左侧栏图标栏多出一个入口（钱包图标），点开即把中央主栏切成
-  「模型清单与余额」整页（服务商卡片 → 余额 → 模型表格），右上角刷新。
-  每张卡片的模型表**默认只列前 6 个**，其余收进「查看全部 N 个模型」——
-  点开是一个与宿主 Modal 同款样式的弹窗（`--dsw-alias-bg-mask-1` 遮罩、
+  「模型清单与余额」整页，右上角刷新。卡片展示服务商、缺少凭据的提示、模型数量
+  与账户余额/额度；卡片根据面板宽度自动排列为多列，窄面板显示单列，最后一行保持
+  相同列宽。卡片最小高度为 160px，所有卡片按内容最多的一张统一高度。
+  模型名称、参数和能力信息全部放在弹窗中。
+  缺少凭据时的引用和不支持余额查询的详细原因可悬停查看，控制台链接仍直接展示。
+  每张服务商卡片右上角的刷新图标只更新该服务商的模型与余额/额度；刷新期间保留
+  原数据，其他服务商可继续单独刷新，失败提示留在该卡片。
+  每张卡片在标题区的服务商名称下显示一条更新时间，余额与所有额度共用，
+  与余额区的额度重置时间分开；单卡刷新只更新自己的时间。
+  1 分钟内显示「刚刚」，1 小时内显示「N分钟前」，24 小时内显示「Nh前」，更久显示
+  年月日时分；停留在面板时自动更新文案，悬停可查看完整时间。
+  点击卡片上的「模型 N」即可查看模型列表，只有少量模型的服务商也可打开；
+  模型数量为 0 时入口禁用。弹窗采用宿主 Modal 同款样式（`--dsw-alias-bg-mask-1` 遮罩、
   `--dsw-mask-blur` 背景模糊、`--dsw-radius-panel` + `--dsw-elevation-prominent`），
   支持 Esc、点遮罩关闭，并在关闭后把焦点还给触发按钮。
   它不在设置里——用的是 `sidebar.panellist` + `main` 这一对槽位：
   **侧栏入口的 `id` 就是主面板的 `key`**，shell 据此把该 key 的面板渲染到中央列。
   标题栏的「模型设置」按钮直接打开宿主的 设置 → 模型 弹窗
   （`sidebar.settings` 条目 store 的 `actions.openSection('models')`）。
-- **会话顶栏徽章**：显示各钱包余额合计；点击既刷新，也直接切到上面那个面板
-  （通过 `ctx.layout.selectPanel('models-usage')`）。
 - **模型工具 `models_balance`**：无参数，返回同一份 JSON 载荷，模型可以自己读。
-- **命令**：`/dsh-models-usage [summary|detail|refresh]`（UI 内部就走这条通道）。
+- **命令**：`/dsh-models-usage [summary|detail|refresh] [provider=<id>]`（UI 内部就走这条通道）。
+  例如 `/dsh-models-usage refresh provider=kimi-coding` 只重新查询 Kimi Code。
+
+### 搜索与过滤
+
+主面板与模型弹窗的「搜索和过滤」区域默认收起，点击展开后显示搜索框与筛选项。
+收起只隐藏控件，已设置的条件继续生效；收起时仍显示匹配计数，有条件时标注「筛选中」。
+标题下的搜索框按服务商和模型的名称、ID 做大小写不敏感的子串匹配，忽略搜索词
+首尾空白。服务商名称或 ID 命中时匹配该服务商符合能力条件的全部模型；仅模型
+命中时匹配相应模型，卡片显示匹配数量，弹窗显示匹配列表。
+
+服务商、启用状态、输入类型和「支持推理」可以组合使用，所有条件取交集。
+选项来自当前完整目录，未启用服务商是否返回仍由 `includeDormantProviders` 控制。
+能力筛选只匹配明确标注的模型；缺少 `inputModalities` 或有效推理强度元数据的模型
+不会被推断为支持该能力，关闭 `includeModelDetails` 时可能缺少推理信息。
+筛选只在前端处理已有载荷，不查询新的余额，也不改变服务商的账户余额。
+
+面板显示匹配数与原始总数；卡片只显示模型数量，全部匹配模型均可在弹窗查看。
+弹窗内的模型搜索、输入类型和推理条件继续缩小主面板结果，弹窗的「重置筛选」
+只清除局部条件，关闭弹窗后局部条件重置。主面板条件在切换面板、会话和刷新时
+保留，页面或插件重载后恢复默认；刷新后所选服务商或输入类型消失时保留条件，
+显示无结果及当前目录中不存在的选项，可用「重置筛选」恢复完整列表。
+
+验证搜索、弹窗、条件保留与请求次数：`node .scratch/filter-harness.mjs`。
+
+### 余额缓存与刷新
+
+Host 和浏览器分别保留一份插件实例内的完整载荷，默认有效期 **60 秒**，从采集完成
+开始计算。`summary` 只在返回时隐藏模型明细；切换面板或会话
+不会清空缓存，也不会重复查询。浏览器沿用 Host 返回的剩余有效期，不会把旧结果续期。
+
+过期后再次打开面板或切换会话，先显示已有数据，再后台更新；不做余额定时轮询。
+点击「刷新」或执行 `/dsh-models-usage refresh` 会绕过两端缓存。正在进行的请求
+仍由各入口共用，刷新期间保留旧数据并禁用刷新按钮，成功后更新面板。
+卡片的单独刷新也绕过缓存，但只替换该服务商的数据，不延长其他服务商的缓存有效期。
+
+整体请求失败时保留上次结果及其更新时间；单个服务商查询失败时，若服务商地址与
+凭据描述未变，则保留该服务商之前成功读取的余额，并明确显示原时间和更新失败。
+失败后自动重试间隔至少 **15 秒**，手动刷新可立即重试；缺少凭据、未登录等状态
+不会被旧余额覆盖。缓存只在内存里，页面或插件重载后重新读取。没有活动会话时
+仍只提示先打开会话；模型或凭据变更通过手动刷新或缓存到期生效。
 
 ## 数据来源（全部是宿主已有服务，不新增宿主改动）
 
@@ -111,6 +170,18 @@ DSH 的运行时解析层按模块所在目录分层：**profile 目录内的包
 | baseURL / api / apiKeyEnv / 配置模型 | `ctx.settings.describe()`，按目录里的 `settingsNs` + `settingsPath` 取值 |
 | 凭据是否存在 | `ctx.credentials.describe(ref)` / `describeRecord('<settingsNs>/<provider>')` |
 | 余额 | DeepSeek 开放平台 `GET /user/balance`；DeepSeek 账号 `ctx.deepseekAccount.getBalance()`；OpenRouter `/api/v1/credits` |
+| Kimi Code 账户额度与加油包 | `GET https://api.kimi.com/coding/v1/usages`（海外 `api.kimi.ai`），Bearer 模型 API Key |
+
+Kimi Code（`kimi-coding`）显示接口实际返回的 5 小时、周、月度总额度、月度编程额度的
+剩余百分比与进度条、各窗口的额度刷新时间（按浏览器本地时区显示，接口未返回则不显示），
+以及加油包余额（如有）。支持 API Key 引用和 `api-key` record；
+未覆盖 baseURL 的内置路由使用官方国内地址，OpenAI `/coding/v1` 与 Anthropic `/coding/`
+两种地址均可识别。额度保持账户级，不计入现金钱包；缺失窗口或钱包不补零。
+进度条长度表示剩余比例：50% 及以上为绿色，20% 至不足 50% 为橙色，低于 20% 为红色；
+剩余百分比使用相同颜色，不再重复显示已用百分比。
+新版比例字段和旧版 `usage`/`limits` 格式均按官方 CLI 解析：
+[当前官方实现](https://github.com/MoonshotAI/kimi-code/blob/main/packages/oauth/src/managed-usage.ts)、
+[旧版官方实现](https://github.com/MoonshotAI/kimi-cli/blob/main/src/kimi_cli/ui/shell/usage.py)。
 
 Host 半不 import 任何 Harness 内部包（除 `@deepseek-ai/dsh-tools` 的 `defineTool`），
 余额查询走一个有界的 node 子进程，API key 只经子进程 stdin 传递，不进 argv、日志或输出；
@@ -150,4 +221,4 @@ Host 半不 import 任何 Harness 内部包（除 `@deepseek-ai/dsh-tools` 的 `
 - 每次刷新会执行一次 `/dsh-models-usage` 命令，因而向会话日志追加 `command/run` +
   `command/done` 事件；这些行在界面上被隐藏（副作用是手敲同名命令的行也会被隐藏）。
 - pi-ai 的 OAuth/交互式凭据存放在 record 里：只有 `kind: 'api-key'` 的 record 能用于
-  余额查询，`grant` 类型会被标注为凭据已配置但无法用于余额接口。
+  余额查询，`grant` 类型无法用于余额接口。

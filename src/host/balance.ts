@@ -9,6 +9,7 @@ import { errorText, isRecord } from '../shared'
 import type { BalanceInfo, Wallet } from '../payload'
 import type { DeepseekAccountService, ServiceLookup } from './context'
 import { balanceTarget, consoleLink } from './links'
+import { parseKimiUsage } from './kimi'
 import { clientMetadata, requestJson } from './net'
 import type { PluginOptions } from './options'
 
@@ -72,6 +73,9 @@ export async function providerBalance(
     return { status: 'failed', message: response.error, link: consoleLink(providerId, baseURL) }
   }
   const data = response.data
+  if (target.kind === 'kimi-coding') {
+    return { ...parseKimiUsage(data), endpoint: target.url, link: consoleLink(providerId, baseURL) }
+  }
   if (target.kind === 'deepseek') {
     const infos = isRecord(data) && Array.isArray(data.balance_infos) ? data.balance_infos.filter(isRecord) : []
     return {

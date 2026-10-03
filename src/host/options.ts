@@ -3,7 +3,6 @@
 export const COMMAND_NAME = 'dsh-models-usage'
 export const ACCOUNT_PROVIDER = 'deepseek-account'
 export const OFFICIAL_PROVIDER = 'deepseek-official'
-export const CACHE_TTL_MS = 15_000
 export const HTTP_TIMEOUT_MS = 15_000
 export const DETAIL_MODEL_CAP = 120
 export const DETAIL_CONCURRENCY = 6

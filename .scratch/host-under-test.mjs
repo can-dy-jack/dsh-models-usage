@@ -23,11 +23,57 @@ function createServiceLookup(ctx) {
   };
 }
 
+// src/cache.ts
+var CACHE_TTL_MS = 6e4;
+var CACHE_RETRY_MS = 15e3;
+function projectPayload(payload, detail) {
+  return detail ? payload : {
+    ...payload,
+    detail: false,
+    providers: payload.providers.map((provider) => ({ ...provider, models: [] }))
+  };
+}
+function retainBalances(previous, next) {
+  if (previous === void 0) return next;
+  const byId = new Map(previous.providers.map((provider) => [provider.id, provider]));
+  return {
+    ...next,
+    providers: next.providers.map((provider) => {
+      const old = byId.get(provider.id);
+      if (provider.balance.status !== "failed" || old?.balance.status !== "ready" || old.baseURL !== provider.baseURL || old.settingsNs !== provider.settingsNs || old.credential?.ref !== provider.credential?.ref || old.credential?.source !== provider.credential?.source || old.credential?.kind !== provider.credential?.kind || old.credential?.configured !== provider.credential?.configured) return provider;
+      return {
+        ...provider,
+        balance: {
+          ...old.balance,
+          fetchedAt: old.balance.fetchedAt ?? previous.fetchedAt,
+          refreshError: provider.balance.message || "balance-query-failed"
+        }
+      };
+    })
+  };
+}
+function hasBalanceFailure(payload) {
+  return payload.providers.some((provider) => provider.balance.status === "failed" || provider.balance.refreshError !== void 0);
+}
+function mergeProviderPayload(previous, update) {
+  const byId = new Map(update.providers.map((provider) => [provider.id, provider]));
+  const providers = previous.providers.map((provider) => byId.get(provider.id) ?? provider);
+  return {
+    ...previous,
+    fetchedAt: update.fetchedAt,
+    providers,
+    counts: {
+      providers: providers.length,
+      activeProviders: providers.filter((provider) => provider.active).length,
+      models: providers.reduce((total, provider) => total + provider.modelCount, 0)
+    }
+  };
+}
+
 // src/host/options.ts
 var COMMAND_NAME = "dsh-models-usage";
 var ACCOUNT_PROVIDER = "deepseek-account";
 var OFFICIAL_PROVIDER = "deepseek-official";
-var CACHE_TTL_MS = 15e3;
 var HTTP_TIMEOUT_MS = 15e3;
 var DETAIL_MODEL_CAP = 120;
 var DETAIL_CONCURRENCY = 6;
@@ -59,6 +105,9 @@ function hostOf(baseURL) {
 }
 function consoleLink(providerId, baseURL) {
   const host = hostOf(baseURL);
+  if (kimiUsageURL(providerId, baseURL) !== void 0) {
+    return host === "api.kimi.ai" ? "https://www.kimi.ai/code/console" : "https://www.kimi.com/code/console";
+  }
   if (host !== void 0) {
     if (host.endsWith("volces.com")) return "https://console.volcengine.com/ark";
     if (host === "openrouter.ai") return "https://openrouter.ai/settings/credits";
@@ -70,6 +119,24 @@ function consoleLink(providerId, baseURL) {
   if (providerId === "ark") return "https://console.volcengine.com/ark";
   return originOf(baseURL);
 }
+function kimiUsageURL(providerId, baseURL) {
+  if (baseURL === void 0) {
+    return providerId === "kimi-coding" ? "https://api.kimi.com/coding/v1/usages" : void 0;
+  }
+  try {
+    const url = new URL(baseURL);
+    if (url.protocol !== "https:" && url.protocol !== "http:") return void 0;
+    const path = url.pathname.replace(/\/+$/, "");
+    const official = (url.hostname === "api.kimi.com" || url.hostname === "api.kimi.ai") && /^\/coding(?:\/v1)?$/.test(path);
+    if (providerId !== "kimi-coding" && !official) return void 0;
+    url.pathname = path + (path.endsWith("/v1") ? "/usages" : "/v1/usages");
+    url.search = "";
+    url.hash = "";
+    return url.href;
+  } catch {
+    return void 0;
+  }
+}
 function balanceTarget(providerId, baseURL) {
   if (providerId === ACCOUNT_PROVIDER) return { kind: "account" };
   const host = hostOf(baseURL);
@@ -77,12 +144,107 @@ function balanceTarget(providerId, baseURL) {
     return { kind: "deepseek", url: `${originOf(baseURL) ?? "https://api.deepseek.com"}/user/balance` };
   }
   if (host === "openrouter.ai") return { kind: "openrouter", url: "https://openrouter.ai/api/v1/credits" };
+  const kimiURL = kimiUsageURL(providerId, baseURL);
+  if (kimiURL !== void 0) return { kind: "kimi-coding", url: kimiURL };
   return { kind: "unsupported" };
 }
 function providerOrder(providerId) {
   if (providerId === ACCOUNT_PROVIDER) return 0;
   if (providerId === OFFICIAL_PROVIDER) return 1;
   return 2;
+}
+
+// src/host/kimi.ts
+function numeric(value) {
+  if (typeof value !== "number" && (typeof value !== "string" || value.trim().length === 0)) return void 0;
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? number : void 0;
+}
+function resetAt(data) {
+  for (const key of ["reset_time", "resetTime", "reset_at", "resetAt"]) {
+    const value = asString(data[key]);
+    if (value !== void 0 && Number.isFinite(Date.parse(value))) return value;
+  }
+  for (const key of ["reset_in", "resetIn", "ttl"]) {
+    const seconds = numeric(data[key]);
+    if (seconds !== void 0 && seconds <= 31536e3) return new Date(Date.now() + seconds * 1e3).toISOString();
+  }
+  return void 0;
+}
+function quota(id, usedPercent, data) {
+  return { id, usedPercent, remainingPercent: Math.max(0, 100 - usedPercent), resetAt: resetAt(data) };
+}
+function countQuota(id, data) {
+  if (!isRecord(data)) return void 0;
+  const limit = numeric(data.limit);
+  const remaining = numeric(data.remaining);
+  const used = numeric(data.used) ?? (limit !== void 0 && remaining !== void 0 ? Math.max(0, limit - remaining) : void 0);
+  if (limit === void 0 || limit <= 0 || used === void 0) return void 0;
+  const usedPercent = used / limit * 100;
+  if (!Number.isFinite(usedPercent)) return void 0;
+  return {
+    ...quota(id, usedPercent, data),
+    limit,
+    used,
+    remaining: remaining ?? Math.max(0, limit - used)
+  };
+}
+function windowSeconds(item, detail) {
+  const window = isRecord(item.window) ? item.window : {};
+  const duration = numeric(window.duration ?? item.duration ?? detail.duration);
+  if (duration === void 0 || duration <= 0) return void 0;
+  const unit = asString(window.timeUnit ?? item.timeUnit ?? detail.timeUnit) ?? "";
+  const factor = unit.includes("MINUTE") ? 60 : unit.includes("HOUR") ? 3600 : unit.includes("DAY") ? 86400 : 1;
+  const seconds = duration * factor;
+  return Number.isFinite(seconds) ? seconds : void 0;
+}
+function boosterWallet(raw) {
+  if (!isRecord(raw) || !isRecord(raw.balance) || raw.balance.type !== "BOOSTER") return void 0;
+  const left = numeric(raw.balance.amountLeft);
+  if (left === void 0) return void 0;
+  const total = numeric(raw.balance.amount);
+  const monthlyLimit = isRecord(raw.monthlyChargeLimit) ? raw.monthlyChargeLimit : {};
+  const monthlyUsed = isRecord(raw.monthlyUsed) ? raw.monthlyUsed : {};
+  return {
+    currency: asString(monthlyLimit.currency) ?? asString(monthlyUsed.currency) ?? "USD",
+    balance: (left / 1e8).toFixed(8),
+    toppedUp: total !== void 0 ? (total / 1e8).toFixed(8) : void 0,
+    kind: "extra-usage"
+  };
+}
+function parseKimiUsage(data) {
+  if (!isRecord(data)) return { status: "failed", message: "Kimi Code \u7528\u91CF\u54CD\u5E94\u7ED3\u6784\u65E0\u6CD5\u8BC6\u522B" };
+  const quotas = [];
+  const usages = isRecord(data.usages) ? data.usages : {};
+  for (const [field, id] of [
+    ["limit_5h", "five-hour"],
+    ["limit_7d", "weekly"],
+    ["limit_month_total", "month-total"],
+    ["limit_month_code", "month-code"]
+  ]) {
+    const entry = usages[field];
+    if (!isRecord(entry)) continue;
+    const ratio = numeric(entry.used_ratio);
+    if (ratio !== void 0 && Number.isFinite(ratio * 100)) quotas.push(quota(id, ratio * 100, entry));
+  }
+  const summary = countQuota("weekly", data.usage);
+  if (summary !== void 0 && !quotas.some((entry) => entry.id === summary.id)) quotas.push(summary);
+  if (Array.isArray(data.limits)) {
+    for (const [index, item] of data.limits.entries()) {
+      if (!isRecord(item)) continue;
+      const detail = isRecord(item.detail) ? item.detail : item;
+      const seconds = windowSeconds(item, detail);
+      const id = seconds === 18e3 ? "five-hour" : seconds === 604800 ? "weekly" : `limit-${index + 1}`;
+      const entry = countQuota(id, detail);
+      if (entry === void 0 || quotas.some((existing) => existing.id === id)) continue;
+      entry.windowSeconds = seconds;
+      entry.name = asString(item.name ?? item.title ?? item.scope ?? detail.name ?? detail.title);
+      quotas.push(entry);
+    }
+  }
+  const wallet = boosterWallet(data.boosterWallet);
+  if (quotas.length === 0 && wallet === void 0) return { status: "failed", message: "Kimi Code \u672A\u8FD4\u56DE\u53EF\u8BC6\u522B\u7684\u989D\u5EA6\u6216\u4F59\u989D\u6570\u636E" };
+  return { status: "ready", quotas, wallets: wallet !== void 0 ? [wallet] : [] };
 }
 
 // src/host/net.ts
@@ -235,6 +397,9 @@ async function providerBalance(service, options, providerId, baseURL, resolveKey
     return { status: "failed", message: response.error, link: consoleLink(providerId, baseURL) };
   }
   const data = response.data;
+  if (target.kind === "kimi-coding") {
+    return { ...parseKimiUsage(data), endpoint: target.url, link: consoleLink(providerId, baseURL) };
+  }
   if (target.kind === "deepseek") {
     const infos = isRecord(data) && Array.isArray(data.balance_infos) ? data.balance_infos.filter(isRecord) : [];
     return {
@@ -511,19 +676,21 @@ async function collectProvider(env, entry, settingsRows, signal) {
     models
   };
 }
-async function buildPayload(env, detail, signal) {
+async function buildPayload(env, collect, providerId) {
   const settingsRows = readSettingsRows(env.service);
-  const entries = listProviderEntries(env.service, env.options);
+  const allEntries = listProviderEntries(env.service, env.options);
+  const entries = providerId === void 0 ? allEntries : allEntries.filter((entry) => entry.id === providerId);
+  if (providerId !== void 0 && entries.length === 0) throw new Error(`\u672A\u627E\u5230\u670D\u52A1\u5546: ${providerId}`);
   const providers = [];
   for (const entry of entries) {
-    providers.push(await collectProvider(env, entry, settingsRows, signal));
+    providers.push(await collect(entry, settingsRows));
   }
   const payload = {
     ok: true,
     command: COMMAND_NAME,
-    detail: detail === true,
+    detail: true,
     fetchedAt: (/* @__PURE__ */ new Date()).toISOString(),
-    providers: providers.map((provider) => detail === true ? provider : { ...provider, models: [] }),
+    providers,
     counts: {
       providers: providers.length,
       activeProviders: providers.filter((provider) => provider.active).length,
@@ -532,14 +699,72 @@ async function buildPayload(env, detail, signal) {
   };
   return payload;
 }
+function waitForPayload(pending, signal) {
+  if (signal === void 0) return pending;
+  signal.throwIfAborted();
+  return new Promise((resolve, reject) => {
+    const abort = () => {
+      reject(signal.reason);
+    };
+    signal.addEventListener("abort", abort, { once: true });
+    pending.then(resolve, reject).finally(() => signal.removeEventListener("abort", abort));
+  });
+}
 function createPayloadLoader(env) {
   let cache;
-  return async function payloadFor(detail, signal) {
-    const now = Date.now();
-    if (cache !== void 0 && cache.detail === detail && now - cache.at < CACHE_TTL_MS) return cache.payload;
-    const payload = await buildPayload(env, detail, signal);
-    cache = { at: now, detail, payload };
-    return payload;
+  let pending;
+  let failure;
+  const providerPending = /* @__PURE__ */ new Map();
+  const scopedPending = /* @__PURE__ */ new Map();
+  const collect = (entry, settingsRows) => {
+    const existing = providerPending.get(entry.id);
+    if (existing !== void 0) return existing;
+    const request = collectProvider(env, entry, settingsRows, void 0).finally(() => {
+      providerPending.delete(entry.id);
+    });
+    providerPending.set(entry.id, request);
+    return request;
+  };
+  return async function payloadFor(detail, signal, force = false, providerId) {
+    signal?.throwIfAborted();
+    if (providerId !== void 0) {
+      let request = scopedPending.get(providerId);
+      if (request === void 0) {
+        request = buildPayload(env, collect, providerId).then((collected) => {
+          const payload2 = retainBalances(cache?.payload, collected);
+          const ttl = hasBalanceFailure(payload2) ? CACHE_RETRY_MS : CACHE_TTL_MS;
+          if (cache !== void 0) {
+            cache.payload = mergeProviderPayload(cache.payload, payload2);
+            cache.expiresAt = Math.min(cache.expiresAt, Date.now() + ttl);
+          }
+          return { ...payload2, cacheRemainingMs: ttl };
+        }).finally(() => {
+          scopedPending.delete(providerId);
+        });
+        scopedPending.set(providerId, request);
+      }
+      return projectPayload(await waitForPayload(request, signal), detail);
+    }
+    if (pending === void 0) {
+      if (!force && cache !== void 0 && Date.now() < cache.expiresAt) {
+        return { ...projectPayload(cache.payload, detail), cacheRemainingMs: cache.expiresAt - Date.now() };
+      }
+      if (!force && failure !== void 0 && Date.now() < failure.retryAt) throw failure.error;
+      pending = buildPayload(env, collect).then((collected) => {
+        const payload2 = retainBalances(cache?.payload, collected);
+        const ttl = hasBalanceFailure(payload2) ? CACHE_RETRY_MS : CACHE_TTL_MS;
+        cache = { expiresAt: Date.now() + ttl, payload: payload2 };
+        failure = void 0;
+        return payload2;
+      }, (error) => {
+        failure = { retryAt: Date.now() + CACHE_RETRY_MS, error };
+        throw error;
+      }).finally(() => {
+        pending = void 0;
+      });
+    }
+    const payload = await waitForPayload(pending, signal);
+    return { ...projectPayload(payload, detail), cacheRemainingMs: Math.max(0, (cache?.expiresAt ?? 0) - Date.now()) };
   };
 }
 
@@ -553,13 +778,18 @@ function apply(ctx, config) {
   ctx.commands.register({
     name: COMMAND_NAME,
     description: "\u5217\u51FA\u5F53\u524D\u6A21\u578B\u5217\u8868\u4E2D\u7684\u670D\u52A1\u5546\u4E0E\u6A21\u578B\uFF0C\u5E76\u67E5\u8BE2\u53EF\u83B7\u5F97\u7684\u4F59\u989D\u4FE1\u606F\u3002",
-    input: { hint: "summary | detail | refresh" },
+    input: { hint: "summary | detail | refresh [provider=<id>]" },
     recordInput: false,
     handler: async (invocation) => {
-      const raw = String(invocation.rawInput ?? "").trim().toLowerCase();
-      const detail = raw !== "summary";
       try {
-        const payload = await payloadFor(detail, void 0);
+        const args = String(invocation.rawInput ?? "").trim().split(/\s+/).filter(Boolean);
+        const modes = args.map((arg) => arg.toLowerCase());
+        const providerArgs = args.filter((arg) => arg.startsWith("provider="));
+        if (providerArgs.length > 1 || args.some((arg) => !["summary", "detail", "refresh"].includes(arg.toLowerCase()) && !arg.startsWith("provider="))) {
+          throw new Error("\u7528\u6CD5: summary | detail | refresh [provider=<id>]");
+        }
+        const providerId = providerArgs.length === 0 ? void 0 : decodeURIComponent(providerArgs[0].slice("provider=".length));
+        const payload = await payloadFor(!modes.includes("summary"), void 0, modes.includes("refresh"), providerId);
         return { kind: "success", text: JSON.stringify(payload) };
       } catch (error) {
         return { kind: "error", text: `\u91C7\u96C6\u6A21\u578B\u6E05\u5355\u5931\u8D25: ${error instanceof Error ? error.message : String(error)}` };
