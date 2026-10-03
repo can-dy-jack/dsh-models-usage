@@ -34,18 +34,19 @@ function projectPayload(payload, detail) {
   };
 }
 function retainBalances(previous, next) {
-  if (previous === void 0) return next;
-  const byId = new Map(previous.providers.map((provider) => [provider.id, provider]));
+  const byId = new Map(previous?.providers.map((provider) => [provider.id, provider]));
   return {
     ...next,
     providers: next.providers.map((provider) => {
       const old = byId.get(provider.id);
-      if (provider.balance.status !== "failed" || old?.balance.status !== "ready" || old.baseURL !== provider.baseURL || old.settingsNs !== provider.settingsNs || old.credential?.ref !== provider.credential?.ref || old.credential?.source !== provider.credential?.source || old.credential?.kind !== provider.credential?.kind || old.credential?.configured !== provider.credential?.configured) return provider;
+      if (provider.balance.status !== "failed" || old?.balance.status !== "ready" || old.baseURL !== provider.baseURL || old.settingsNs !== provider.settingsNs || old.credential?.ref !== provider.credential?.ref || old.credential?.source !== provider.credential?.source || old.credential?.kind !== provider.credential?.kind || old.credential?.configured !== provider.credential?.configured) {
+        return { ...provider, balance: { ...provider.balance, fetchedAt: provider.balance.fetchedAt ?? next.fetchedAt } };
+      }
       return {
         ...provider,
         balance: {
           ...old.balance,
-          fetchedAt: old.balance.fetchedAt ?? previous.fetchedAt,
+          fetchedAt: old.balance.fetchedAt ?? previous?.fetchedAt,
           refreshError: provider.balance.message || "balance-query-failed"
         }
       };
@@ -676,14 +677,14 @@ async function collectProvider(env, entry, settingsRows, signal) {
     models
   };
 }
-async function buildPayload(env, collect, providerId) {
+async function buildPayload(env, providerId) {
   const settingsRows = readSettingsRows(env.service);
   const allEntries = listProviderEntries(env.service, env.options);
   const entries = providerId === void 0 ? allEntries : allEntries.filter((entry) => entry.id === providerId);
   if (providerId !== void 0 && entries.length === 0) throw new Error(`\u672A\u627E\u5230\u670D\u52A1\u5546: ${providerId}`);
   const providers = [];
   for (const entry of entries) {
-    providers.push(await collect(entry, settingsRows));
+    providers.push(await collectProvider(env, entry, settingsRows, void 0));
   }
   const payload = {
     ok: true,
@@ -714,23 +715,24 @@ function createPayloadLoader(env) {
   let cache;
   let pending;
   let failure;
-  const providerPending = /* @__PURE__ */ new Map();
   const scopedPending = /* @__PURE__ */ new Map();
-  const collect = (entry, settingsRows) => {
-    const existing = providerPending.get(entry.id);
-    if (existing !== void 0) return existing;
-    const request = collectProvider(env, entry, settingsRows, void 0).finally(() => {
-      providerPending.delete(entry.id);
-    });
-    providerPending.set(entry.id, request);
-    return request;
-  };
   return async function payloadFor(detail, signal, force = false, providerId) {
     signal?.throwIfAborted();
     if (providerId !== void 0) {
+      if (pending !== void 0) {
+        const payload2 = await waitForPayload(pending, signal);
+        const provider = payload2.providers.find((entry) => entry.id === providerId);
+        if (provider === void 0) throw new Error(`\u672A\u627E\u5230\u670D\u52A1\u5546: ${providerId}`);
+        return projectPayload({
+          ...payload2,
+          providers: [provider],
+          counts: { providers: 1, activeProviders: provider.active ? 1 : 0, models: provider.modelCount },
+          cacheRemainingMs: Math.max(0, (cache?.expiresAt ?? 0) - Date.now())
+        }, detail);
+      }
       let request = scopedPending.get(providerId);
       if (request === void 0) {
-        request = buildPayload(env, collect, providerId).then((collected) => {
+        request = buildPayload(env, providerId).then((collected) => {
           const payload2 = retainBalances(cache?.payload, collected);
           const ttl = hasBalanceFailure(payload2) ? CACHE_RETRY_MS : CACHE_TTL_MS;
           if (cache !== void 0) {
@@ -745,12 +747,15 @@ function createPayloadLoader(env) {
       }
       return projectPayload(await waitForPayload(request, signal), detail);
     }
+    if (pending === void 0 && scopedPending.size > 0) {
+      await waitForPayload(Promise.allSettled(scopedPending.values()), signal);
+    }
     if (pending === void 0) {
       if (!force && cache !== void 0 && Date.now() < cache.expiresAt) {
         return { ...projectPayload(cache.payload, detail), cacheRemainingMs: cache.expiresAt - Date.now() };
       }
       if (!force && failure !== void 0 && Date.now() < failure.retryAt) throw failure.error;
-      pending = buildPayload(env, collect).then((collected) => {
+      pending = buildPayload(env).then((collected) => {
         const payload2 = retainBalances(cache?.payload, collected);
         const ttl = hasBalanceFailure(payload2) ? CACHE_RETRY_MS : CACHE_TTL_MS;
         cache = { expiresAt: Date.now() + ttl, payload: payload2 };

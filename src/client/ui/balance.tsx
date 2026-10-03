@@ -6,7 +6,7 @@ import type { Translate } from '../i18n'
 import { currencySymbol, formatAmount, formatLocalDateTime, formatPercent } from '../format'
 
 export function quotaLabel(entry: QuotaWindow, t: Translate): string {
-  if (['five-hour', 'weekly', 'month-total', 'month-code'].includes(entry.id)) return t('quota-' + entry.id)
+  if (['five-hour', 'weekly', 'monthly', 'month-total', 'month-code'].includes(entry.id)) return t('quota-' + entry.id)
   if (entry.name) return entry.name
   if (entry.windowSeconds) return t('quotaWindow', { hours: entry.windowSeconds / 3600 })
   return t('quota')

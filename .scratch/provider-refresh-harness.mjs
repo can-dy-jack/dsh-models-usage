@@ -176,7 +176,7 @@ try {
   assert.equal(buttons[1].props.disabled, false)
   assert.ok(buttons[0].props.className.includes('is-refreshing'))
   assert.equal(byClass(tree, 'dmu-card')[0].props['aria-busy'], true)
-  assert.equal(byClass(tree, 'dmu-button')[0].props.disabled, true)
+  assert.equal(byClass(tree, 'dmu-button').find((button) => button.children.includes('刷新')).props.disabled, true)
   buttons[1].props.onClick()
   assert.equal(calls.length, 3)
   const update = (id, balance, count) => {

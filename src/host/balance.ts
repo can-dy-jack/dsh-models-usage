@@ -10,6 +10,7 @@ import type { BalanceInfo, Wallet } from '../payload'
 import type { DeepseekAccountService, ServiceLookup } from './context'
 import { balanceTarget, consoleLink } from './links'
 import { parseKimiUsage } from './kimi'
+import { parseOpenCodeGoUsage } from './opencode'
 import { clientMetadata, requestJson } from './net'
 import type { PluginOptions } from './options'
 
@@ -70,11 +71,17 @@ export async function providerBalance(
   const headers = { Authorization: `Bearer ${key}`, Accept: 'application/json' }
   const response = await requestJson(service, target.url, headers, signal)
   if (response.ok !== true) {
-    return { status: 'failed', message: response.error, link: consoleLink(providerId, baseURL) }
+    const message = target.kind === 'opencode-go' && response.status === 403
+      ? 'OpenCode Go 拒绝额度查询，请检查订阅状态及 API Key 是否关联订阅 (HTTP 403)'
+      : response.error
+    return { status: 'failed', message, link: consoleLink(providerId, baseURL) }
   }
   const data = response.data
   if (target.kind === 'kimi-coding') {
     return { ...parseKimiUsage(data), endpoint: target.url, link: consoleLink(providerId, baseURL) }
+  }
+  if (target.kind === 'opencode-go') {
+    return { ...parseOpenCodeGoUsage(data), endpoint: target.url, link: consoleLink(providerId, baseURL) }
   }
   if (target.kind === 'deepseek') {
     const infos = isRecord(data) && Array.isArray(data.balance_infos) ? data.balance_infos.filter(isRecord) : []

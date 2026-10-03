@@ -7,7 +7,7 @@ DeepSeek Harness 的组合插件（Host + Web Client 双半）：把**当前模�
 
 - 现在的模型列表里到底有哪些 provider / model？（含是否已激活、baseURL、协议、缺少凭据提示）
 - 每个模型的上下文窗口、最大输出、输入模态（text/image）、可用的 reasoning effort。
-- 每个服务商的余额或额度：DeepSeek 开放平台、DeepSeek 账号、Kimi Code 走官方接口；火山方舟等未提供
+- 每个服务商的余额或额度：DeepSeek 开放平台、DeepSeek 账号、Kimi Code、OpenCode Go 走官方接口；火山方舟等未提供
   「用模型密钥查余额」接口的服务商会被**明确标注为不支持**并给出控制台入口，而不是伪造一个 0。
 
 余额永远是**服务商账户级**的，不是模型级：模型 id 只是价格/路由事实，钱包属于它背后的账号。
@@ -102,7 +102,7 @@ DSH 的运行时解析层按模块所在目录分层：**profile 目录内的包
   相同列宽。卡片最小高度为 160px，所有卡片按内容最多的一张统一高度。
   模型名称、参数和能力信息全部放在弹窗中。
   顶部「支持的额度查询」按钮可查看当前已接入的 DeepSeek 开放平台、DeepSeek 账号、
-  OpenRouter 和 Kimi Code 查询，以及可查内容和凭据要求；没有活动会话时也可打开。
+  OpenRouter、Kimi Code 和 OpenCode Go 查询，以及可查内容和凭据要求；没有活动会话时也可打开。
   缺少凭据时的引用和不支持余额查询的详细原因可悬停查看，控制台链接仍直接展示。
   每张服务商卡片右上角的刷新图标只更新该服务商的模型与余额/额度；刷新期间保留
   原数据，其他服务商可继续单独刷新，失败提示留在该卡片。
@@ -173,6 +173,7 @@ Host 和浏览器分别保留一份插件实例内的完整载荷，默认有效
 | 凭据是否存在 | `ctx.credentials.describe(ref)` / `describeRecord('<settingsNs>/<provider>')` |
 | 余额 | DeepSeek 开放平台 `GET /user/balance`；DeepSeek 账号 `ctx.deepseekAccount.getBalance()`；OpenRouter `/api/v1/credits` |
 | Kimi Code 账户额度与加油包 | `GET https://api.kimi.com/coding/v1/usages`（海外 `api.kimi.ai`），Bearer 模型 API Key |
+| OpenCode Go 账户额度 | `GET https://opencode.ai/zen/go/v1/usage`，Bearer 模型 API Key |
 
 Kimi Code（`kimi-coding`）显示接口实际返回的 5 小时、周、月度总额度、月度编程额度的
 剩余百分比与进度条、各窗口的额度刷新时间（按浏览器本地时区显示，接口未返回则不显示），
@@ -184,6 +185,15 @@ Kimi Code（`kimi-coding`）显示接口实际返回的 5 小时、周、月度�
 新版比例字段和旧版 `usage`/`limits` 格式均按官方 CLI 解析：
 [当前官方实现](https://github.com/MoonshotAI/kimi-code/blob/main/packages/oauth/src/managed-usage.ts)、
 [旧版官方实现](https://github.com/MoonshotAI/kimi-cli/blob/main/src/kimi_cli/ui/shell/usage.py)。
+
+OpenCode Go（`opencode-go`）显示 5 小时滚动、周、月额度的剩余比例及服务端重置时间。
+`usage.{rolling,weekly,monthly}.percent` 是已用百分比，剩余比例按 `100 - percent` 计算；
+缺失窗口不补零，无法识别的响应报告失败。支持 API Key 引用和 `api-key` record，
+内置路由默认使用官方地址，也能识别官方 `/zen/go/v1`（或 `/zen/go`）地址及显式 Go 路由的代理地址。
+查询只读取 Go 订阅额度，不返回 Zen 充值余额；HTTP 403 提示检查订阅与密钥关联。
+解析契约见 [官方接口源码](https://github.com/anomalyco/opencode/blob/dev/packages/console/app/src/routes/zen/go/v1/usage.ts)。
+独立验证：`node .scratch/opencode-harness.mjs`；配置已有密钥后可用
+`node .scratch/opencode-live.mjs` 做只读实测（不输出密钥）。
 
 Host 半不 import 任何 Harness 内部包（除 `@deepseek-ai/dsh-tools` 的 `defineTool`），
 余额查询走一个有界的 node 子进程，API key 只经子进程 stdin 传递，不进 argv、日志或输出；

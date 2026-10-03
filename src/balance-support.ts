@@ -4,6 +4,7 @@ export const SUPPORTED_BALANCE_QUERIES = [
   { id: 'account', name: 'supportDeepseekAccount', details: 'supportDeepseekAccountDetails', credential: 'supportAccountLogin' },
   { id: 'openrouter', name: 'supportOpenrouter', details: 'supportOpenrouterDetails', credential: 'supportApiKey' },
   { id: 'kimi-coding', name: 'supportKimiCode', details: 'supportKimiCodeDetails', credential: 'supportApiKey' },
+  { id: 'opencode-go', name: 'supportOpenCodeGo', details: 'supportOpenCodeGoDetails', credential: 'supportGoApiKey' },
 ] as const
 
 export type SupportedBalanceQueryKind = typeof SUPPORTED_BALANCE_QUERIES[number]['id']

@@ -27,6 +27,7 @@ export function hostOf(baseURL: unknown): string | undefined {
 /** Console/usage page a user can open when no balance endpoint exists. */
 export function consoleLink(providerId: string, baseURL: string | undefined): string | undefined {
   const host = hostOf(baseURL)
+  if (providerId === 'opencode-go' || host === 'opencode.ai') return 'https://opencode.ai/workspace'
   if (kimiUsageURL(providerId, baseURL) !== undefined) {
     return host === 'api.kimi.ai' ? 'https://www.kimi.ai/code/console' : 'https://www.kimi.com/code/console'
   }
@@ -68,6 +69,25 @@ export function kimiUsageURL(providerId: string, baseURL: string | undefined): s
   }
 }
 
+/** Explicit Go routes may use proxies; automatic detection only matches the official Go base. */
+export function openCodeGoUsageURL(providerId: string, baseURL: string | undefined): string | undefined {
+  if (baseURL === undefined) return providerId === 'opencode-go' ? 'https://opencode.ai/zen/go/v1/usage' : undefined
+  try {
+    const url = new URL(baseURL)
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return undefined
+    const path = url.pathname.replace(/\/+$/, '')
+    const official = url.hostname === 'opencode.ai' && /^\/zen\/go(?:\/v1)?$/.test(path)
+    // Zen uses the same domain but does not expose a model-key wallet query.
+    if (url.hostname === 'opencode.ai' ? !official : providerId !== 'opencode-go') return undefined
+    url.pathname = path + (path.endsWith('/v1') ? '/usage' : '/v1/usage')
+    url.search = ''
+    url.hash = ''
+    return url.href
+  } catch {
+    return undefined
+  }
+}
+
 /** Which balance endpoint, if any, belongs to one provider route. */
 export function balanceTarget(providerId: string, baseURL: string | undefined): BalanceTarget {
   if (providerId === ACCOUNT_PROVIDER) return { kind: 'account' }
@@ -78,6 +98,8 @@ export function balanceTarget(providerId: string, baseURL: string | undefined): 
   if (host === 'openrouter.ai') return { kind: 'openrouter', url: 'https://openrouter.ai/api/v1/credits' }
   const kimiURL = kimiUsageURL(providerId, baseURL)
   if (kimiURL !== undefined) return { kind: 'kimi-coding', url: kimiURL }
+  const goURL = openCodeGoUsageURL(providerId, baseURL)
+  if (goURL !== undefined) return { kind: 'opencode-go', url: goURL }
   return { kind: 'unsupported' }
 }
 
