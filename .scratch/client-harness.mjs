@@ -121,12 +121,19 @@ const payload = {
 /* ── fake client ctx ───────────────────────────────────────────────────── */
 
 const registrations = []
+const settingsCalls = []
 const ctx = {
   remote: { commands: { execute: async () => ({ ok: true, value: { commandId: 'c', result: { kind: 'success', text: JSON.stringify(payload) } } }) } },
   layout: { selectPanel() {} },
   slots: {
     inject(name, callback) { registrations.push({ slot: name, ...callback() }) },
     register(options, component) { return { options, component } },
+    // the settings shell entry carries a store handle; create() yields the
+    // shared instance whose actions include openSection (ui-settings-general)
+    entries(key) {
+      if (key !== 'sidebar.settings') return []
+      return [{ store: { create: () => ({ actions: { openSection: (id) => settingsCalls.push(id), open: () => settingsCalls.push('open') } }) } }]
+    },
   },
 }
 
@@ -212,6 +219,14 @@ overlay.props.onMouseDown({ target: overlay, currentTarget: overlay })
 tree = pass(React.createElement(main.component, props))
 allOk = check('backdrop click closes', findByClass(tree, 'dmu-modal'), null) && allOk
 allOk = check('back to collapsed rows', countByClass(tree, 'dmu-model'), 6) && allOk
+
+/* the header's settings entry jumps straight into Settings → models */
+const buttons = []
+walk(tree, (node) => { if (node.props?.className === 'dmu-button') buttons.push(node) })
+const settingsButton = buttons.find((b) => (b.children ?? []).join('') === '模型设置')
+allOk = check('settings entry present', settingsButton !== undefined, true) && allOk
+settingsButton.props.onClick()
+allOk = check('opens the models section', settingsCalls.join(','), 'models') && allOk
 
 /* the rail icon: geometry only, so a typo in an attribute shows up here */
 const icon = registrations.find((r) => r.slot === 'sidebar.panellist').component

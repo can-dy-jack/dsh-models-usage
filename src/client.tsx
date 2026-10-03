@@ -55,6 +55,28 @@ window.__ModuleLoader__.load({
       }
     }
 
+    /**
+     * Open the host Settings modal directly on one section (default: models).
+     * The settings shell (ui-settings-general) mounts as the `sidebar.settings`
+     * entry carrying a store whose instance actions include `openSection` —
+     * the same action its own onboarding steps and the Cmd+, shortcut call.
+     */
+    function openSettingsSection(ctx: ClientContext, id = 'models') {
+      try {
+        for (const entry of ctx.slots.entries('sidebar.settings')) {
+          const store = isRecord(entry) ? entry.store : undefined
+          const instance = isRecord(store) && typeof store.create === 'function' ? store.create() : undefined
+          const actions = isRecord(instance) ? instance.actions : undefined
+          if (!isRecord(actions)) continue
+          if (typeof actions.openSection === 'function') { actions.openSection(id); return }
+          if (typeof actions.select === 'function' && typeof actions.open === 'function') { actions.select(id); actions.open(); return }
+          if (typeof actions.open === 'function') { actions.open(); return }
+        }
+      } catch {
+        /* the settings shell is optional; the button silently no-ops without it */
+      }
+    }
+
     const inject = ['slots', 'remote', 'remote.commands', 'layout']
 
     function apply(ctx: ClientContext) {
@@ -90,7 +112,7 @@ window.__ModuleLoader__.load({
             }, 5000)
             return () => clearInterval(timer)
           }, [])
-          return <ModelsUsagePanel read={read} sessionId={sessionId} lang={lang} diag={diag} />
+          return <ModelsUsagePanel read={read} sessionId={sessionId} lang={lang} diag={diag} openSettings={() => openSettingsSection(ctx)} />
         },
       ))
 

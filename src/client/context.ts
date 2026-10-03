@@ -36,6 +36,7 @@ export interface ClientContext {
   slots: {
     inject(name: string, register: () => unknown): void
     register(meta: Record<string, unknown>, component: (props: any) => unknown): unknown
+    entries(key: string): readonly unknown[]
   }
   remote: {
     commands: {

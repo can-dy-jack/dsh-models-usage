@@ -6,7 +6,7 @@ import { usePayload } from '../data'
 import { translate, type Translate } from '../i18n'
 import { ProviderCard } from './card'
 
-export function ModelsUsagePanel(props: { read: Reader; diag: string; lang: string; sessionId: string | undefined }) {
+export function ModelsUsagePanel(props: { read: Reader; diag: string; lang: string; sessionId: string | undefined; openSettings?(): void }) {
   const read = props.read
   const diag = props.diag
   const lang = props.lang
@@ -27,6 +27,11 @@ export function ModelsUsagePanel(props: { read: Reader; diag: string; lang: stri
         </p>
       </div>
       <div className="dmu-actions">
+        {props.openSettings === undefined ? null : (
+          <button type="button" className="dmu-button" onClick={props.openSettings}>
+            {t('modelSettings')}
+          </button>
+        )}
         <button
           type="button"
           className="dmu-button"

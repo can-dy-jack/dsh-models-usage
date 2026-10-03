@@ -93,6 +93,8 @@ DSH 的运行时解析层按模块所在目录分层：**profile 目录内的包
   支持 Esc、点遮罩关闭，并在关闭后把焦点还给触发按钮。
   它不在设置里——用的是 `sidebar.panellist` + `main` 这一对槽位：
   **侧栏入口的 `id` 就是主面板的 `key`**，shell 据此把该 key 的面板渲染到中央列。
+  标题栏的「模型设置」按钮直接打开宿主的 设置 → 模型 弹窗
+  （`sidebar.settings` 条目 store 的 `actions.openSection('models')`）。
 - **会话顶栏徽章**：显示各钱包余额合计；点击既刷新，也直接切到上面那个面板
   （通过 `ctx.layout.selectPanel('models-usage')`）。
 - **模型工具 `models_balance`**：无参数，返回同一份 JSON 载荷，模型可以自己读。
