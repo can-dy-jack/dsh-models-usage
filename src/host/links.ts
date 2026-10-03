@@ -1,6 +1,7 @@
 /** Pure provider→URL helpers: console links, balance endpoints, sort order. */
 
 import { asString } from '../shared'
+import type { SupportedBalanceQueryKind } from '../balance-support'
 import { ACCOUNT_PROVIDER, OFFICIAL_PROVIDER } from './options'
 
 export function originOf(baseURL: unknown): string | undefined {
@@ -43,7 +44,7 @@ export function consoleLink(providerId: string, baseURL: string | undefined): st
 
 export type BalanceTarget =
   | { kind: 'account' }
-  | { kind: 'deepseek' | 'openrouter' | 'kimi-coding'; url: string }
+  | { kind: Exclude<SupportedBalanceQueryKind, 'account'>; url: string }
   | { kind: 'unsupported' }
 
 /** Kimi Code supports OpenAI (/coding/v1) and Anthropic (/coding) bases. */

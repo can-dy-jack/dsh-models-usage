@@ -14,7 +14,7 @@ const CSS = `
 [data-platform=darwin] .dmu-head{padding-left:max(20px,calc(var(--dsh-frame-leading-clearance,0px) + 12px))}
 .dmu-title{margin:0;font-size:18px;font-weight:500;line-height:26px}
 .dmu-sub{margin:2px 0 0;color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px}
-.dmu-actions{display:flex;align-items:center;gap:6px;flex:none}
+.dmu-actions{display:flex;align-items:center;flex-wrap:wrap;gap:6px;max-width:100%;flex:none}
 .dmu-button{box-sizing:border-box;height:28px;padding:0 12px;border:0.5px solid var(--dsw-alias-border-l3);border-radius:var(--dsw-radius-md,8px);background:transparent;color:var(--dsw-alias-label-primary);font-size:13px;cursor:pointer}
 .dmu-button:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover)}
 .dmu-button:disabled{color:var(--dsw-alias-label-tertiary);cursor:default}
@@ -125,6 +125,13 @@ const CSS = `
 }
 .dmu-modalClose{flex:none;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:0;border-radius:var(--dsw-radius-sm);background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer}
 .dmu-modalClose:hover{background:var(--dsw-alias-interactive-bg-hover)}
+.dmu-supportModal{width:min(560px,100%)}
+.dmu-supportIntro{margin:0 0 6px;color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px}
+.dmu-supportList{margin:0;padding:0;list-style:none}
+.dmu-supportItem{padding:12px 0;border-bottom:0.5px solid var(--dsw-alias-border-l2)}
+.dmu-supportHead{display:flex;align-items:center;justify-content:space-between;gap:6px 12px;flex-wrap:wrap}
+.dmu-supportDetails{margin:5px 0 0;color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px;overflow-wrap:anywhere}
+.dmu-supportNote{margin:12px 0 0;color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:17px}
 /* The refresh path runs a slash command; its transcript row is a pure side
    effect of the plugin's own UI, so it renders as a hidden stamp instead. */
 [data-chat-flow-kind="command"]:has([data-dmu-command-row]){display:none}

@@ -7,6 +7,7 @@ import { translate, type Translate } from '../i18n'
 import { createFilterStore, filterProviders, inputModalities, type FilterStore } from '../filter'
 import { ProviderCard } from './card'
 import { FilterControls, FilterSection, NoFilterResults } from './filters'
+import { BalanceSupportModal } from './support'
 
 export function ModelsUsagePanel(props: { read: Reader; diag: string; lang: string; sessionId: string | undefined; filters?: FilterStore; openSettings?(): void }) {
   const read = props.read
@@ -15,6 +16,7 @@ export function ModelsUsagePanel(props: { read: Reader; diag: string; lang: stri
   const t: Translate = (key, values) => translate(lang, key, values)
   const sessionId = props.sessionId
   const [token, setToken] = React.useState(0)
+  const [showSupport, setShowSupport] = React.useState(false)
   const localFilters = React.useRef<FilterStore | undefined>(undefined)
   if (localFilters.current === undefined) localFilters.current = createFilterStore()
   const filterStore = props.filters ?? localFilters.current
@@ -37,6 +39,10 @@ export function ModelsUsagePanel(props: { read: Reader; diag: string; lang: stri
         </p>
       </div>
       <div className="dmu-actions">
+        <button type="button" className="dmu-button" aria-haspopup="dialog" aria-expanded={showSupport}
+          onClick={() => setShowSupport(true)}>
+          {t('supportedQueries')}
+        </button>
         {props.openSettings === undefined ? null : (
           <button type="button" className="dmu-button" onClick={props.openSettings}>
             {t('modelSettings')}
@@ -106,6 +112,7 @@ export function ModelsUsagePanel(props: { read: Reader; diag: string; lang: stri
           : null}
         {body}
       </div>
+      {showSupport ? <BalanceSupportModal t={t} onClose={() => setShowSupport(false)} /> : null}
     </div>
   )
 }
