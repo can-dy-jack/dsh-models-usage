@@ -45,7 +45,7 @@ export const BUILTIN_PROVIDER_QUERY_SUPPORT: readonly ProviderQuerySupport[] = [
     ...('documentation' in query ? { documentation: query.documentation } : {}),
   }))),
   pending('amazon-bedrock', 'Amazon Bedrock', 'supportAwsUsageDetails', 'https://docs.aws.amazon.com/aws-cost-management/latest/APIReference/API_GetCostAndUsage.html'),
-  noPublicApi('ant-ling', 'Ant Ling', 'https://developer.ant-ling.com/zh-CN/docs/getting-started/changelog/billing-upgrade/'),
+  noPublicApi('ant-ling', 'Ant Ling', 'https://developer.ant-ling.com/zh-CN/docs/getting-started/changelog/billing-upgrade/', 'supportAntLingBillingDetails'),
   pending('anthropic', 'Anthropic', 'supportAnthropicUsageDetails', 'https://platform.claude.com/docs/en/manage-claude/usage-cost-api'),
   pending('azure-openai-responses', 'Azure OpenAI', 'supportAzureUsageDetails', 'https://learn.microsoft.com/en-us/rest/api/cost-management/query/usage'),
   pending('baseten', 'Baseten', 'supportBasetenUsageDetails', 'https://www.baseten.co/resources/changelog/retrieve-billing-usage-via-api/'),

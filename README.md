@@ -200,6 +200,13 @@ API 账户，与 Kimi Code 的订阅额度分开。展示官方返回的可用�
 报告失败，刷新失败保留上次成功余额。官方文档：[国内站](https://platform.moonshot.cn/docs/api/balance)、
 [国际站](https://platform.moonshot.ai/docs/api/balance)。
 
+Ant Ling（`ant-ling`）及使用 `api.ant-ling.com` 的自定义路由提供
+[百灵官方控制台](https://chat.ant-ling.com/open)入口。官方公开文档未提供模型 API Key
+余额查询接口；控制台的钱包查询依赖登录会话，插件目前明确提示需登录控制台查看，
+不会把未读取的余额或免费额度填成 0。新百灵钱包和小程序云旧钱包分别管理，
+计费迁移后的免费权益为月度抵扣券，不能与旧版每日 Token 额度直接相加。
+详情见[官方计费升级说明](https://developer.ant-ling.com/zh-CN/docs/getting-started/changelog/billing-upgrade/)。
+
 OpenCode Go（`opencode-go`）显示 5 小时滚动、周、月额度的剩余比例及服务端重置时间。
 `usage.{rolling,weekly,monthly}.percent` 是已用百分比，剩余比例按 `100 - percent` 计算；
 缺失窗口不补零，无法识别的响应报告失败。支持 API Key 引用和 `api-key` record，

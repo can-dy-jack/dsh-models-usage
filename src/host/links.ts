@@ -24,9 +24,15 @@ export function hostOf(baseURL: unknown): string | undefined {
   }
 }
 
+/** Recognize the built-in route and custom routes on the official API host. */
+export function isAntLingRoute(providerId: string, baseURL: string | undefined): boolean {
+  return providerId === 'ant-ling' || hostOf(baseURL) === 'api.ant-ling.com'
+}
+
 /** Console/usage page a user can open when no balance endpoint exists. */
 export function consoleLink(providerId: string, baseURL: string | undefined): string | undefined {
   const host = hostOf(baseURL)
+  if (isAntLingRoute(providerId, baseURL)) return 'https://chat.ant-ling.com/open'
   if (providerId === 'opencode-go' || host === 'opencode.ai') return 'https://opencode.ai/workspace'
   if (kimiUsageURL(providerId, baseURL) !== undefined) {
     return host === 'api.kimi.ai' ? 'https://www.kimi.ai/code/console' : 'https://www.kimi.com/code/console'

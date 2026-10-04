@@ -99,7 +99,7 @@ export function BalanceBlock(props: { balance: BalanceInfo | null | undefined; t
     : balance.status === 'not-signed-in'
       ? t('notSignedIn')
       : balance.status === 'unsupported'
-        ? t('unsupported')
+        ? t(balance.messageKey ?? 'unsupported')
         : (balance.message || balance.status)
   return (
     <div className="dmu-balance">

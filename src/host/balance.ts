@@ -8,7 +8,7 @@
 import { errorText, isRecord } from '../shared'
 import type { BalanceInfo, Wallet } from '../payload'
 import type { DeepseekAccountService, ServiceLookup } from './context'
-import { balanceTarget, consoleLink } from './links'
+import { balanceTarget, consoleLink, isAntLingRoute } from './links'
 import { parseKimiUsage } from './kimi'
 import { parseMoonshotBalance } from './moonshot'
 import { parseOpenCodeGoUsage } from './opencode'
@@ -56,9 +56,13 @@ export async function providerBalance(
   const target = balanceTarget(providerId, baseURL)
   if (target.kind === 'account') return accountBalance(service, options)
   if (target.kind === 'unsupported') {
+    const antLing = isAntLingRoute(providerId, baseURL)
     return {
       status: 'unsupported',
-      message: '该服务商未提供可用模型密钥查询的余额接口',
+      message: antLing
+        ? '百灵余额与额度需登录官方控制台查看；公开文档未提供模型 API Key 查询接口'
+        : '该服务商未提供可用模型密钥查询的余额接口',
+      ...(antLing ? { messageKey: 'supportAntLingConsoleDetails' } : {}),
       link: consoleLink(providerId, baseURL),
     }
   }

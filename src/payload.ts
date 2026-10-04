@@ -75,6 +75,8 @@ export type BalanceInfo = {
   fetchedAt?: string
   refreshError?: string
   message?: string
+  /** Optional localized explanation for provider-specific unsupported queries. */
+  messageKey?: string
   link?: string
   endpoint?: string
   isAvailable?: boolean
