@@ -33,6 +33,7 @@ export function isAntLingRoute(providerId: string, baseURL: string | undefined):
 export function consoleLink(providerId: string, baseURL: string | undefined): string | undefined {
   const host = hostOf(baseURL)
   if (isAntLingRoute(providerId, baseURL)) return 'https://chat.ant-ling.com/open'
+  if (providerId === 'openrouter' || host === 'openrouter.ai') return 'https://openrouter.ai/settings/credits'
   if (providerId === 'opencode-go' || host === 'opencode.ai') return 'https://opencode.ai/workspace'
   if (kimiUsageURL(providerId, baseURL) !== undefined) {
     return host === 'api.kimi.ai' ? 'https://www.kimi.ai/code/console' : 'https://www.kimi.com/code/console'
@@ -45,7 +46,6 @@ export function consoleLink(providerId: string, baseURL: string | undefined): st
   }
   if (host !== undefined) {
     if (host.endsWith('volces.com')) return 'https://console.volcengine.com/ark'
-    if (host === 'openrouter.ai') return 'https://openrouter.ai/settings/credits'
     if (host.endsWith('bigmodel.cn')) return 'https://bigmodel.cn/usercenter/proj-mgmt/account'
     if (host.endsWith('aliyuncs.com')) return 'https://bailian.console.aliyun.com/'
     if (host.endsWith('siliconflow.cn')) return 'https://cloud.siliconflow.cn/account/ak'
@@ -58,6 +58,25 @@ export type BalanceTarget =
   | { kind: 'account' }
   | { kind: Exclude<SupportedBalanceQueryKind, 'account'>; url: string }
   | { kind: 'unsupported' }
+
+/** Built-in routes can omit their default base; explicit proxies keep their origin and prefix. */
+export function openRouterCreditsURL(providerId: string, baseURL: string | undefined): string | undefined {
+  if (baseURL === undefined) return providerId === 'openrouter' ? 'https://openrouter.ai/api/v1/credits' : undefined
+  try {
+    const url = new URL(baseURL)
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return undefined
+    const official = url.hostname === 'openrouter.ai'
+    if (providerId !== 'openrouter' && !official) return undefined
+    const path = url.pathname.replace(/\/+$/, '')
+    url.pathname = official ? '/api/v1/credits'
+      : path + (path.endsWith('/v1') ? '/credits' : '/api/v1/credits')
+    url.search = ''
+    url.hash = ''
+    return url.href
+  } catch {
+    return undefined
+  }
+}
 
 /** Regional keys and currencies are independent; explicit routes may use a proxy. */
 export function moonshotBalanceTarget(providerId: string, baseURL: string | undefined):
@@ -128,11 +147,13 @@ export function openCodeGoUsageURL(providerId: string, baseURL: string | undefin
 /** Which balance endpoint, if any, belongs to one provider route. */
 export function balanceTarget(providerId: string, baseURL: string | undefined): BalanceTarget {
   if (providerId === ACCOUNT_PROVIDER) return { kind: 'account' }
+  if (isAntLingRoute(providerId, baseURL)) return { kind: 'unsupported' }
   const host = hostOf(baseURL)
   if (providerId === OFFICIAL_PROVIDER || (host !== undefined && (host === 'api.deepseek.com' || host.endsWith('.deepseek.com')))) {
     return { kind: 'deepseek', url: `${originOf(baseURL) ?? 'https://api.deepseek.com'}/user/balance` }
   }
-  if (host === 'openrouter.ai') return { kind: 'openrouter', url: 'https://openrouter.ai/api/v1/credits' }
+  const creditsURL = openRouterCreditsURL(providerId, baseURL)
+  if (creditsURL !== undefined) return { kind: 'openrouter', url: creditsURL }
   const kimiURL = kimiUsageURL(providerId, baseURL)
   if (kimiURL !== undefined) return { kind: 'kimi-coding', url: kimiURL }
   const moonshot = moonshotBalanceTarget(providerId, baseURL)

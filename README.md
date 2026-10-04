@@ -180,6 +180,13 @@ Host 和浏览器分别保留一份插件实例内的完整载荷，默认有效
 | Moonshot AI / Kimi 开放平台账户余额 | `GET https://api.moonshot.cn/v1/users/me/balance`（国际站 `api.moonshot.ai`），Bearer 模型 API Key |
 | OpenCode Go 账户额度 | `GET https://opencode.ai/zen/go/v1/usage`，Bearer 模型 API Key |
 
+OpenRouter（`openrouter`）未设置 baseURL 时，按内置路由使用
+`https://openrouter.ai/api/v1/credits` 查询账户余额；自定义路由通过官方 API 域名识别，
+显式 OpenRouter 代理保留地址和路径前缀。支持 API Key 引用和 `api-key` record。
+缺少密钥显示未配置，HTTP 403 提示检查账户余额查询权限；
+[官方接口文档](https://openrouter.ai/docs/api/api-reference/credits/get-remaining-credits)
+要求管理密钥，Key 的消费限额不作为账户余额。
+
 Kimi Code（`kimi-coding`）显示接口实际返回的 5 小时、周、月度总额度、月度编程额度的
 剩余百分比与进度条、各窗口的额度刷新时间（按浏览器本地时区显示，接口未返回则不显示），
 以及加油包余额（如有）。支持 API Key 引用和 `api-key` record；
@@ -201,10 +208,9 @@ API 账户，与 Kimi Code 的订阅额度分开。展示官方返回的可用�
 [国际站](https://platform.moonshot.ai/docs/api/balance)。
 
 Ant Ling（`ant-ling`）及使用 `api.ant-ling.com` 的自定义路由提供
-[百灵官方控制台](https://chat.ant-ling.com/open)入口。官方公开文档未提供模型 API Key
-余额查询接口；控制台的钱包查询依赖登录会话，插件目前明确提示需登录控制台查看，
-不会把未读取的余额或免费额度填成 0。新百灵钱包和小程序云旧钱包分别管理，
-计费迁移后的免费权益为月度抵扣券，不能与旧版每日 Token 额度直接相加。
+[百灵官方控制台](https://chat.ant-ling.com/open)入口，**暂不支持余额与额度自动查询**。
+模型 API Key 无法认证控制台的钱包接口，这些接口依赖网页登录会话，暂不接入。
+服务商卡片和支持清单均标记为「不支持余额查询」，账户余额和免费权益请登录控制台查看。
 详情见[官方计费升级说明](https://developer.ant-ling.com/zh-CN/docs/getting-started/changelog/billing-upgrade/)。
 
 OpenCode Go（`opencode-go`）显示 5 小时滚动、周、月额度的剩余比例及服务端重置时间。

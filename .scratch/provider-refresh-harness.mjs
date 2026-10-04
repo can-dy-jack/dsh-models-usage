@@ -52,7 +52,8 @@ try {
       describeRecord: () => ({ configured: true, kind: 'api-key' }),
       readRecord: () => ({ kind: 'api-key', key: 'mock-key' }),
     },
-    settings: { describe: () => [{ ns: 'llm-pi-ai', value: { providers: { openrouter: { baseURL: 'https://openrouter.ai/api/v1' } } } }] },
+    // Built-in OpenRouter uses its default base; an explicit URL must not be required.
+    settings: { describe: () => [{ ns: 'llm-pi-ai', value: { providers: { openrouter: {} } } }] },
     deepseekAccount: {
       getBalance: async () => {
         accountCalls++
@@ -62,7 +63,11 @@ try {
     },
     subprocess: {
       resolveExecutable: () => '/mock/node',
-      spawn: () => {
+      spawn: (spec) => {
+        const request = JSON.parse(spec.stdio.stdin.data)
+        assert.equal(request.url, 'https://openrouter.ai/api/v1/credits')
+        assert.equal(request.headers.Authorization, 'Bearer mock-key')
+        assert.ok(!spec.argv.join(' ').includes('mock-key'))
         creditCalls++
         return {
           done: Promise.resolve({ exitCode: 0 }),
@@ -77,6 +82,7 @@ try {
   assert.equal(initial.providers.length, 3)
   assert.equal(accountCalls, 1)
   assert.equal(creditCalls, 1)
+  assert.equal(initial.providers.find((provider) => provider.id === 'openrouter').balance.status, 'ready')
   now += 30_000
   asked.length = 0
   accountBalance = '8'

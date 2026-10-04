@@ -60,13 +60,14 @@ export async function providerBalance(
     return {
       status: 'unsupported',
       message: antLing
-        ? '百灵余额与额度需登录官方控制台查看；公开文档未提供模型 API Key 查询接口'
+        ? '暂不支持百灵余额查询；模型 API Key 无法认证控制台钱包接口，请登录官方控制台查看'
         : '该服务商未提供可用模型密钥查询的余额接口',
       ...(antLing ? { messageKey: 'supportAntLingConsoleDetails' } : {}),
       link: consoleLink(providerId, baseURL),
     }
   }
-  const credentialLabel = label ?? (target.kind === 'moonshot' || target.kind === 'moonshot-cn' ? 'Moonshot API Key' : undefined)
+  const credentialLabel = label ?? (target.kind === 'openrouter' ? 'OpenRouter API Key'
+    : target.kind === 'moonshot' || target.kind === 'moonshot-cn' ? 'Moonshot API Key' : undefined)
   if (credentialLabel === undefined) {
     return { status: 'unsupported', message: '未声明凭据引用，无法查询余额', link: consoleLink(providerId, baseURL) }
   }
@@ -79,6 +80,8 @@ export async function providerBalance(
   if (response.ok !== true) {
     const message = target.kind === 'opencode-go' && response.status === 403
       ? 'OpenCode Go 拒绝额度查询，请检查订阅状态及 API Key 是否关联订阅 (HTTP 403)'
+      : target.kind === 'openrouter' && response.status === 403
+        ? 'OpenRouter 拒绝余额查询，请确认 API Key 有账户余额查询权限（官方文档要求管理密钥）(HTTP 403)'
       : response.error
     return { status: 'failed', message, link: consoleLink(providerId, baseURL) }
   }

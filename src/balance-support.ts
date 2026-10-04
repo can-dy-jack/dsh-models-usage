@@ -2,7 +2,7 @@
 export const SUPPORTED_BALANCE_QUERIES = [
   { id: 'deepseek', providers: ['deepseek-official', 'deepseek'], name: 'supportDeepseekApi', statusLabel: 'supportBalanceReady', details: 'supportDeepseekApiDetails', credential: 'supportApiKey' },
   { id: 'account', providers: ['deepseek-account'], name: 'supportDeepseekAccount', statusLabel: 'supportBalanceReady', details: 'supportDeepseekAccountDetails', credential: 'supportAccountLogin' },
-  { id: 'openrouter', providers: ['openrouter'], name: 'supportOpenrouter', statusLabel: 'supportBalanceReady', details: 'supportOpenrouterDetails', credential: 'supportApiKey' },
+  { id: 'openrouter', providers: ['openrouter'], name: 'supportOpenrouter', statusLabel: 'supportBalanceReady', details: 'supportOpenrouterDetails', credential: 'supportOpenrouterApiKey', documentation: 'https://openrouter.ai/docs/api/api-reference/credits/get-remaining-credits' },
   { id: 'kimi-coding', providers: ['kimi-coding'], name: 'supportKimiCode', statusLabel: 'supportBalanceUsageReady', details: 'supportKimiCodeDetails', credential: 'supportApiKey' },
   { id: 'moonshot', providers: ['moonshotai'], name: 'supportMoonshot', statusLabel: 'supportBalanceReady', details: 'supportMoonshotBalanceDetails', credential: 'supportApiKey', documentation: 'https://platform.moonshot.ai/docs/api/balance' },
   { id: 'moonshot-cn', providers: ['moonshotai-cn'], name: 'supportMoonshotCn', statusLabel: 'supportBalanceReady', details: 'supportMoonshotCnBalanceDetails', credential: 'supportApiKey', documentation: 'https://platform.moonshot.cn/docs/api/balance' },
@@ -45,7 +45,7 @@ export const BUILTIN_PROVIDER_QUERY_SUPPORT: readonly ProviderQuerySupport[] = [
     ...('documentation' in query ? { documentation: query.documentation } : {}),
   }))),
   pending('amazon-bedrock', 'Amazon Bedrock', 'supportAwsUsageDetails', 'https://docs.aws.amazon.com/aws-cost-management/latest/APIReference/API_GetCostAndUsage.html'),
-  noPublicApi('ant-ling', 'Ant Ling', 'https://developer.ant-ling.com/zh-CN/docs/getting-started/changelog/billing-upgrade/', 'supportAntLingBillingDetails'),
+  { ...noPublicApi('ant-ling', 'Ant Ling', 'https://developer.ant-ling.com/zh-CN/docs/getting-started/changelog/billing-upgrade/', 'supportAntLingBillingDetails'), statusLabel: 'balanceUnsupported' },
   pending('anthropic', 'Anthropic', 'supportAnthropicUsageDetails', 'https://platform.claude.com/docs/en/manage-claude/usage-cost-api'),
   pending('azure-openai-responses', 'Azure OpenAI', 'supportAzureUsageDetails', 'https://learn.microsoft.com/en-us/rest/api/cost-management/query/usage'),
   pending('baseten', 'Baseten', 'supportBasetenUsageDetails', 'https://www.baseten.co/resources/changelog/retrieve-billing-usage-via-api/'),
