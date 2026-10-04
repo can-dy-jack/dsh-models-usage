@@ -3,11 +3,18 @@
 const CSS_ID = '@local/dsh-models-usage/client.css'
 
 const CSS = `
-.dmu-page{box-sizing:border-box;height:100%;min-height:0;min-width:0;display:flex;flex-direction:column;overflow:hidden;container:dmu-page / inline-size;color:var(--dsw-alias-label-primary);font-size:13px;line-height:1.5}
+.dmu-page{position:relative;box-sizing:border-box;height:100%;min-height:0;min-width:0;display:flex;flex-direction:column;overflow:hidden;container:dmu-page / inline-size;color:var(--dsw-alias-label-primary);font-size:13px;line-height:1.5}
 .dmu-page>*{flex:none;min-width:0;width:100%;box-sizing:border-box}
 /* Keep the compact header outside the list's scroll container. */
 .dmu-pageBody{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px;padding:12px 20px 24px;overflow-y:auto}
 .dmu-pageBody>*{flex:none}
+/* Anchor the loading group to the whole panel, including the header's height. */
+.dmu-pageBody.is-loading{overflow:hidden}
+.dmu-loading{position:absolute;inset:0;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:20px;pointer-events:none;text-align:center;color:var(--dsw-alias-label-secondary)}
+.dmu-loadingIcon{display:block;flex:none;color:var(--dsw-alias-state-business-primary,#4d6bfe);transform-origin:center;animation:dmu-whale-float 1.8s ease-in-out infinite}
+.dmu-loadingText{margin:0;max-width:100%;font-size:13px;line-height:20px;overflow-wrap:anywhere}
+@keyframes dmu-whale-float{0%,100%{transform:translateY(2px) rotate(-3deg)}50%{transform:translateY(-3px) rotate(3deg)}}
+@media (prefers-reduced-motion:reduce){.dmu-loadingIcon{animation:none}}
 /* Keep card widths consistent even when the last row has fewer providers. */
 .dmu-providerGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));grid-auto-rows:1fr;gap:12px;align-items:stretch;min-width:0}
 .dmu-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:12px 20px 10px;border-bottom:0.5px solid var(--dsw-alias-border-l2)}

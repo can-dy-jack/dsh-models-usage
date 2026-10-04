@@ -8,6 +8,7 @@ import { createFilterStore, filterProviders, inputModalities, type FilterStore }
 import { ProviderCard } from './card'
 import { FilterControls, FilterSection, NoFilterResults } from './filters'
 import { BalanceSupportModal } from './support'
+import { LoadingState } from './loading'
 
 export function ModelsUsagePanel(props: { read: Reader; diag: string; lang: string; sessionId: string | undefined; filters?: FilterStore; openSettings?(): void }) {
   const read = props.read
@@ -63,7 +64,7 @@ export function ModelsUsagePanel(props: { read: Reader; diag: string; lang: stri
   let body
   let controls
   if (state.kind === 'loading') {
-    body = <div className="dmu-muted">{t('loading')}</div>
+    body = <LoadingState label={t('loading')} />
   } else if (state.kind === 'error') {
     body = state.error === 'no-session'
       ? (
@@ -106,7 +107,7 @@ export function ModelsUsagePanel(props: { read: Reader; diag: string; lang: stri
     <div className="dmu-page" aria-busy={refreshing || providerRefreshing}>
       {header}
       {controls}
-      <div className="dmu-pageBody">
+      <div className={state.kind === 'loading' ? 'dmu-pageBody is-loading' : 'dmu-pageBody'}>
         {state.kind === 'ready' && state.refreshError
           ? <div className="dmu-error" role="status">{t('cacheRefreshFailed', { error: state.refreshError })}</div>
           : null}
