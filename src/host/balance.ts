@@ -10,6 +10,7 @@ import type { BalanceInfo, Wallet } from '../payload'
 import type { DeepseekAccountService, ServiceLookup } from './context'
 import { balanceTarget, consoleLink } from './links'
 import { parseKimiUsage } from './kimi'
+import { parseMoonshotBalance } from './moonshot'
 import { parseOpenCodeGoUsage } from './opencode'
 import { clientMetadata, requestJson } from './net'
 import type { PluginOptions } from './options'
@@ -61,12 +62,13 @@ export async function providerBalance(
       link: consoleLink(providerId, baseURL),
     }
   }
-  if (label === undefined) {
+  const credentialLabel = label ?? (target.kind === 'moonshot' || target.kind === 'moonshot-cn' ? 'Moonshot API Key' : undefined)
+  if (credentialLabel === undefined) {
     return { status: 'unsupported', message: '未声明凭据引用，无法查询余额', link: consoleLink(providerId, baseURL) }
   }
   const key = await resolveKey()
   if (key === undefined || key.length === 0) {
-    return { status: 'no-credential', message: `未配置 ${label}`, link: consoleLink(providerId, baseURL) }
+    return { status: 'no-credential', message: `未配置 ${credentialLabel}`, link: consoleLink(providerId, baseURL) }
   }
   const headers = { Authorization: `Bearer ${key}`, Accept: 'application/json' }
   const response = await requestJson(service, target.url, headers, signal)
@@ -82,6 +84,12 @@ export async function providerBalance(
   }
   if (target.kind === 'opencode-go') {
     return { ...parseOpenCodeGoUsage(data), endpoint: target.url, link: consoleLink(providerId, baseURL) }
+  }
+  if (target.kind === 'moonshot' || target.kind === 'moonshot-cn') {
+    return {
+      ...parseMoonshotBalance(data, target.kind === 'moonshot-cn' ? 'CNY' : 'USD'),
+      endpoint: target.url, link: consoleLink(providerId, baseURL),
+    }
   }
   if (target.kind === 'deepseek') {
     const infos = isRecord(data) && Array.isArray(data.balance_infos) ? data.balance_infos.filter(isRecord) : []

@@ -43,6 +43,12 @@ function QuotaLine(props: { quota: QuotaWindow; t: Translate }) {
 function WalletLine(props: { wallet: Wallet; t: Translate }) {
   const wallet = props.wallet
   const parts: string[] = []
+  if (wallet.cash !== undefined) {
+    parts.push(props.t('cashBalance', { amount: currencySymbol(wallet.currency) + formatAmount(wallet.cash) }))
+  }
+  if (wallet.voucher !== undefined) {
+    parts.push(props.t('voucherBalance', { amount: currencySymbol(wallet.currency) + formatAmount(wallet.voucher) }))
+  }
   if (wallet.toppedUp !== undefined && String(wallet.toppedUp).length > 0) {
     parts.push(props.t('toppedUp', { amount: currencySymbol(wallet.currency) + formatAmount(wallet.toppedUp) }))
   }

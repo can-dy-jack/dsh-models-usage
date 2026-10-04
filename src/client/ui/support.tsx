@@ -1,7 +1,15 @@
 /** Plugin support catalog; available independently of sessions and balance reads. */
-import { SUPPORTED_BALANCE_QUERIES } from '../../balance-support'
+import { BUILTIN_PROVIDER_QUERY_SUPPORT, BUILTIN_PROVIDER_QUERY_SUPPORT_GROUPS, type ProviderQuerySupport } from '../../balance-support'
 import { React } from '../react'
 import type { Translate } from '../i18n'
+
+function SupportStatus(props: { provider: ProviderQuerySupport; t: Translate }) {
+  return (
+    <span className={'dmu-badge dmu-supportStatus' + (props.provider.status === 'supported' ? ' ok' : '')}>
+      {props.t(props.provider.statusLabel)}
+    </span>
+  )
+}
 
 export function BalanceSupportModal(props: { t: Translate; onClose(): void }) {
   const t = props.t
@@ -16,9 +24,9 @@ export function BalanceSupportModal(props: { t: Translate; onClose(): void }) {
         event.stopPropagation()
         props.onClose()
       } else if (event.key === 'Tab' && dialogRef.current !== null) {
-        const buttons = dialogRef.current.querySelectorAll<HTMLButtonElement>('button')
-        const first = buttons[0]
-        const last = buttons[buttons.length - 1]
+        const controls = dialogRef.current.querySelectorAll<HTMLElement>('button, a[href]')
+        const first = controls[0]
+        const last = controls[controls.length - 1]
         if (first === undefined) return
         if (event.shiftKey && (document.activeElement === first || document.activeElement === dialogRef.current)) {
           event.preventDefault()
@@ -48,18 +56,43 @@ export function BalanceSupportModal(props: { t: Translate; onClose(): void }) {
             onClick={props.onClose}>{'✕'}</button>
         </div>
         <div className="dmu-modalBody">
-          <p className="dmu-supportIntro" id="dmu-support-intro">{t('supportedQueriesIntro')}</p>
-          <ul className="dmu-supportList">
-            {SUPPORTED_BALANCE_QUERIES.map((query) => (
-              <li className="dmu-supportItem" key={query.id}>
-                <div className="dmu-supportHead">
-                  <h3 className="dmu-name">{t(query.name)}</h3>
-                  <span className="dmu-badge">{t(query.credential)}</span>
-                </div>
-                <p className="dmu-supportDetails">{t(query.details)}</p>
-              </li>
-            ))}
-          </ul>
+          <p className="dmu-supportIntro" id="dmu-support-intro">
+            {t('supportedQueriesIntro', { count: BUILTIN_PROVIDER_QUERY_SUPPORT.length })}
+          </p>
+          {BUILTIN_PROVIDER_QUERY_SUPPORT_GROUPS.map((group) => (
+            <section className="dmu-supportGroup" key={group.id} aria-labelledby={'dmu-support-' + group.id}>
+              <div className="dmu-supportHead">
+                <h3 className="dmu-supportGroupTitle" id={'dmu-support-' + group.id}>
+                  {t('supportGroupTitle', { name: group.translatedName ? t(group.name) : group.name, count: group.providers.length })}
+                </h3>
+                {group.providers.length === 1 ? <SupportStatus provider={group.providers[0]} t={t} /> : null}
+              </div>
+              <ul className="dmu-supportList">
+                {group.providers.map((provider) => (
+                  <li className="dmu-supportItem" key={provider.id}>
+                    {group.providers.length > 1 ? (
+                      <div className="dmu-supportHead">
+                        <h4 className="dmu-name">{provider.translatedName ? t(provider.name) : provider.name}</h4>
+                        <SupportStatus provider={provider} t={t} />
+                      </div>
+                    ) : null}
+                    <div className="dmu-id">{provider.id}</div>
+                    <p className="dmu-supportDetails">{t(provider.details)}</p>
+                    {provider.credential || provider.documentation ? (
+                      <div className="dmu-supportMeta">
+                        {provider.credential ? <span>{t(provider.credential)}</span> : null}
+                        {provider.documentation ? (
+                          <a className="dmu-link" href={provider.documentation} target="_blank" rel="noopener noreferrer">
+                            {t('supportOfficialDocs')}
+                          </a>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
           <p className="dmu-supportNote">{t('supportedQueriesNote')}</p>
         </div>
       </div>

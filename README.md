@@ -7,7 +7,7 @@ DeepSeek Harness 的组合插件（Host + Web Client 双半）：把**当前模�
 
 - 现在的模型列表里到底有哪些 provider / model？（含是否已激活、baseURL、协议、缺少凭据提示）
 - 每个模型的上下文窗口、最大输出、输入模态（text/image）、可用的 reasoning effort。
-- 每个服务商的余额或额度：DeepSeek 开放平台、DeepSeek 账号、Kimi Code、OpenCode Go 走官方接口；火山方舟等未提供
+- 每个服务商的余额或额度：DeepSeek 开放平台、DeepSeek 账号、Moonshot AI（Kimi 开放平台）、Kimi Code、OpenCode Go 走官方接口；火山方舟等未提供
   「用模型密钥查余额」接口的服务商会被**明确标注为不支持**并给出控制台入口，而不是伪造一个 0。
 
 余额永远是**服务商账户级**的，不是模型级：模型 id 只是价格/路由事实，钱包属于它背后的账号。
@@ -101,8 +101,12 @@ DSH 的运行时解析层按模块所在目录分层：**profile 目录内的包
   与账户余额/额度；卡片根据面板宽度自动排列为多列，窄面板显示单列，最后一行保持
   相同列宽。卡片最小高度为 160px，所有卡片按内容最多的一张统一高度。
   模型名称、参数和能力信息全部放在弹窗中。
-  顶部「支持的额度查询」按钮可查看当前已接入的 DeepSeek 开放平台、DeepSeek 账号、
-  OpenRouter、Kimi Code 和 OpenCode Go 查询，以及可查内容和凭据要求；没有活动会话时也可打开。
+  顶部「查看支持现状」按钮列出全部内置供应商路由（包括未启用的供应商），按供应商系列分组：
+  例如 Kimi Code 与 Moonshot 国内 / 国际站放在同一组，各项仍标注「已支持」「尚未接入」
+  或「官方无公开接口」，展示余额/用量查询范围、凭据要求和官方说明。
+  目录包含当前 Harness 的 41 个 pi-ai 路由和 2 个 DeepSeek 原生路由，地区与套餐单独列出；
+  没有活动会话时也可打开，不会发起额外余额请求。尚未接入包括官方提供管理/账单 API、
+  需要额外权限或专用凭据的供应商；“官方无公开接口”不包含控制台内部接口和单次请求的 token 用量。
   缺少凭据时的引用和不支持余额查询的详细原因可悬停查看，控制台链接仍直接展示。
   每张服务商卡片右上角的刷新图标只更新该服务商的模型与余额/额度；刷新期间保留
   原数据，其他服务商可继续单独刷新，失败提示留在该卡片。
@@ -173,6 +177,7 @@ Host 和浏览器分别保留一份插件实例内的完整载荷，默认有效
 | 凭据是否存在 | `ctx.credentials.describe(ref)` / `describeRecord('<settingsNs>/<provider>')` |
 | 余额 | DeepSeek 开放平台 `GET /user/balance`；DeepSeek 账号 `ctx.deepseekAccount.getBalance()`；OpenRouter `/api/v1/credits` |
 | Kimi Code 账户额度与加油包 | `GET https://api.kimi.com/coding/v1/usages`（海外 `api.kimi.ai`），Bearer 模型 API Key |
+| Moonshot AI / Kimi 开放平台账户余额 | `GET https://api.moonshot.cn/v1/users/me/balance`（国际站 `api.moonshot.ai`），Bearer 模型 API Key |
 | OpenCode Go 账户额度 | `GET https://opencode.ai/zen/go/v1/usage`，Bearer 模型 API Key |
 
 Kimi Code（`kimi-coding`）显示接口实际返回的 5 小时、周、月度总额度、月度编程额度的
@@ -185,6 +190,15 @@ Kimi Code（`kimi-coding`）显示接口实际返回的 5 小时、周、月度�
 新版比例字段和旧版 `usage`/`limits` 格式均按官方 CLI 解析：
 [当前官方实现](https://github.com/MoonshotAI/kimi-code/blob/main/packages/oauth/src/managed-usage.ts)、
 [旧版官方实现](https://github.com/MoonshotAI/kimi-cli/blob/main/src/kimi_cli/ui/shell/usage.py)。
+
+Moonshot AI（`moonshotai`）和 Moonshot AI CN（`moonshotai-cn`）是 Kimi 开放平台按用量扣费的
+API 账户，与 Kimi Code 的订阅额度分开。展示官方返回的可用余额、现金余额和代金券余额；
+国内站使用人民币（CNY），国际站使用美元（USD），两站 API Key 不可混用。
+未覆盖 baseURL 时按内置路由选择官方地址；自定义路由可通过官方 API 地址识别，
+显式 Moonshot 路由的代理地址保留路径前缀。支持 API Key 引用与 `api-key` record。
+现金余额可以为负，可用余额直接采用接口值；缺失明细不补零，无法识别的响应或错误状态
+报告失败，刷新失败保留上次成功余额。官方文档：[国内站](https://platform.moonshot.cn/docs/api/balance)、
+[国际站](https://platform.moonshot.ai/docs/api/balance)。
 
 OpenCode Go（`opencode-go`）显示 5 小时滚动、周、月额度的剩余比例及服务端重置时间。
 `usage.{rolling,weekly,monthly}.percent` 是已用百分比，剩余比例按 `100 - percent` 计算；
@@ -223,8 +237,9 @@ Host 半不 import 任何 Harness 内部包（除 `@deepseek-ai/dsh-tools` 的 `
   所以没有会话时页面只会提示先打开会话。
   取的是「主视图保留的会话」（`state.byId[x].retainedBy.mainView > 0`）——
   这个 store 只有 `{ids, byId, phase}`，**没有 `current` 字段**。
-- **不是所有服务商都能查余额。** 只有官方提供「用模型 API key 查询」接口的才行；
-  火山方舟、Moonshot、智谱等需要 AK/SK 签名或控制台，插件只能标注并给链接。
+- **不是所有查询都已接入。** 有些供应商未公开账户查询接口；有些已提供接口，但需要
+  管理员密钥、云账单权限或套餐专用凭据，插件尚未接入。智谱的 Coding Plan 用量查询
+  也属于尚未接入，具体范围见「查看支持现状」。
 - **余额是账户级**，无法按模型拆分；按模型的花费只能靠会话日志估算（本插件不做）。
 - DeepSeek 账号余额会同时出现在 **设置 → 账号**，这里只是并入同一张清单。
 - **只显示真正注册了 adapter 的服务商。** pi-ai 会把整份内置目录都声明出来（`amazon-bedrock`、`openai`、`anthropic`…），这些路由没配置就没有 adapter，`ctx.llm.listModels()` 会抛 `no adapter registered for provider "…"`。本插件默认只保留 `listProviders()`（已注册路由）里的服务商，目录仅用于补充显示名与设置路径；要看全量时把 `includeDormantProviders` 设为 `true`。

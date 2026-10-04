@@ -31,10 +31,15 @@ export function consoleLink(providerId: string, baseURL: string | undefined): st
   if (kimiUsageURL(providerId, baseURL) !== undefined) {
     return host === 'api.kimi.ai' ? 'https://www.kimi.ai/code/console' : 'https://www.kimi.com/code/console'
   }
+  const moonshot = moonshotBalanceTarget(providerId, baseURL)
+  if (moonshot !== undefined) {
+    return moonshot.kind === 'moonshot-cn'
+      ? 'https://platform.moonshot.cn/console/info'
+      : 'https://platform.moonshot.ai/console/info'
+  }
   if (host !== undefined) {
     if (host.endsWith('volces.com')) return 'https://console.volcengine.com/ark'
     if (host === 'openrouter.ai') return 'https://openrouter.ai/settings/credits'
-    if (host.endsWith('moonshot.cn') || host.endsWith('moonshot.ai')) return 'https://platform.moonshot.cn/console/info'
     if (host.endsWith('bigmodel.cn')) return 'https://bigmodel.cn/usercenter/proj-mgmt/account'
     if (host.endsWith('aliyuncs.com')) return 'https://bailian.console.aliyun.com/'
     if (host.endsWith('siliconflow.cn')) return 'https://cloud.siliconflow.cn/account/ak'
@@ -47,6 +52,32 @@ export type BalanceTarget =
   | { kind: 'account' }
   | { kind: Exclude<SupportedBalanceQueryKind, 'account'>; url: string }
   | { kind: 'unsupported' }
+
+/** Regional keys and currencies are independent; explicit routes may use a proxy. */
+export function moonshotBalanceTarget(providerId: string, baseURL: string | undefined):
+  { kind: 'moonshot' | 'moonshot-cn'; url: string } | undefined {
+  const routeKind = providerId === 'moonshotai-cn' ? 'moonshot-cn' : providerId === 'moonshotai' ? 'moonshot' : undefined
+  if (baseURL === undefined) {
+    if (routeKind === undefined) return undefined
+    return { kind: routeKind, url: `https://api.moonshot.${routeKind === 'moonshot-cn' ? 'cn' : 'ai'}/v1/users/me/balance` }
+  }
+  try {
+    const url = new URL(baseURL)
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return undefined
+    const officialKind = url.hostname === 'api.moonshot.cn' ? 'moonshot-cn'
+      : url.hostname === 'api.moonshot.ai' ? 'moonshot' : undefined
+    const kind = officialKind ?? routeKind
+    if (kind === undefined) return undefined
+    const path = url.pathname.replace(/\/+$/, '')
+    url.pathname = officialKind !== undefined ? '/v1/users/me/balance'
+      : path + (path.endsWith('/v1') ? '/users/me/balance' : '/v1/users/me/balance')
+    url.search = ''
+    url.hash = ''
+    return { kind, url: url.href }
+  } catch {
+    return undefined
+  }
+}
 
 /** Kimi Code supports OpenAI (/coding/v1) and Anthropic (/coding) bases. */
 export function kimiUsageURL(providerId: string, baseURL: string | undefined): string | undefined {
@@ -98,6 +129,8 @@ export function balanceTarget(providerId: string, baseURL: string | undefined): 
   if (host === 'openrouter.ai') return { kind: 'openrouter', url: 'https://openrouter.ai/api/v1/credits' }
   const kimiURL = kimiUsageURL(providerId, baseURL)
   if (kimiURL !== undefined) return { kind: 'kimi-coding', url: kimiURL }
+  const moonshot = moonshotBalanceTarget(providerId, baseURL)
+  if (moonshot !== undefined) return moonshot
   const goURL = openCodeGoUsageURL(providerId, baseURL)
   if (goURL !== undefined) return { kind: 'opencode-go', url: goURL }
   return { kind: 'unsupported' }

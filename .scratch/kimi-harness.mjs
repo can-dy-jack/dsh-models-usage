@@ -69,7 +69,8 @@ for (const [id, base, expected] of [
   ['custom', 'https://api.kimi.ai/coding/v1/', 'https://api.kimi.ai/coding/v1/usages'],
   ['kimi-coding', 'https://proxy.example/prefix/coding/v1', 'https://proxy.example/prefix/coding/v1/usages'],
 ]) assert.deepEqual(balanceTarget(id, base), { kind: 'kimi-coding', url: expected })
-for (const base of ['https://api.moonshot.cn/v1', 'https://api.kimi.com/v1', 'https://api.kimi.com.example/coding/v1']) {
+assert.equal(balanceTarget('moonshot', 'https://api.moonshot.cn/v1').kind, 'moonshot-cn')
+for (const base of ['https://api.kimi.com/v1', 'https://api.kimi.com.example/coding/v1']) {
   assert.equal(balanceTarget('moonshot', base).kind, 'unsupported')
 }
 assert.equal(balanceTarget('kimi-coding', 'bad-url').kind, 'unsupported')

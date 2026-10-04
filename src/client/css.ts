@@ -125,12 +125,17 @@ const CSS = `
 }
 .dmu-modalClose{flex:none;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:0;border-radius:var(--dsw-radius-sm);background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer}
 .dmu-modalClose:hover{background:var(--dsw-alias-interactive-bg-hover)}
-.dmu-supportModal{width:min(560px,100%)}
+.dmu-supportModal{width:min(640px,100%)}
 .dmu-supportIntro{margin:0 0 6px;color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px}
+.dmu-supportGroup{margin-top:12px;padding:12px;border:0.5px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-sm)}
+.dmu-supportGroupTitle{margin:0;font-size:13px;line-height:20px;font-weight:600;color:var(--dsw-alias-label-primary)}
 .dmu-supportList{margin:0;padding:0;list-style:none}
-.dmu-supportItem{padding:12px 0;border-bottom:0.5px solid var(--dsw-alias-border-l2)}
+.dmu-supportItem{padding:10px 0;border-bottom:0.5px solid var(--dsw-alias-border-l2)}
+.dmu-supportItem:last-child{padding-bottom:0;border-bottom:0}
 .dmu-supportHead{display:flex;align-items:center;justify-content:space-between;gap:6px 12px;flex-wrap:wrap}
+.dmu-supportStatus{flex:none}
 .dmu-supportDetails{margin:5px 0 0;color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px;overflow-wrap:anywhere}
+.dmu-supportMeta{display:flex;align-items:center;gap:4px 12px;flex-wrap:wrap;margin-top:5px;color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:17px}
 .dmu-supportNote{margin:12px 0 0;color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:17px}
 /* The refresh path runs a slash command; its transcript row is a pure side
    effect of the plugin's own UI, so it renders as a hidden stamp instead. */

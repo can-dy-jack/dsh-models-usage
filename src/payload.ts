@@ -42,6 +42,9 @@ export type Wallet = {
   balance: string
   granted?: string
   toppedUp?: string
+  /** Moonshot reports cash (possibly debt) and vouchers separately. */
+  cash?: string
+  voucher?: string
   kind: string
 }
 
