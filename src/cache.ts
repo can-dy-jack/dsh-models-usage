@@ -22,6 +22,8 @@ export function retainBalances(previous: UsagePayload | undefined, next: UsagePa
       const old = byId.get(provider.id)
       if (provider.balance.status !== 'failed' || old?.balance.status !== 'ready'
         || old.baseURL !== provider.baseURL
+        // Switching between built-in and custom queries must not keep the other source's value.
+        || old.balance.source !== provider.balance.source
         || old.settingsNs !== provider.settingsNs
         || old.credential?.ref !== provider.credential?.ref
         || old.credential?.source !== provider.credential?.source

@@ -64,7 +64,7 @@ export type QuotaWindow = {
   name?: string
   /** Resource pools can have separate windows within the same account. */
   scope?: string
-  period?: 'five-hour' | 'weekly'
+  period?: 'five-hour' | 'weekly' | 'monthly'
   unlimited?: boolean
   windowSeconds?: number
   usedPercent: number
@@ -89,6 +89,8 @@ export type BalanceInfo = {
   wallets?: Wallet[]
   bonusWallets?: Wallet[]
   quotas?: QuotaWindow[]
+  /** 'custom' when a user-defined query produced this result. */
+  source?: 'custom'
 }
 
 export type ProviderEntry = {
@@ -103,6 +105,8 @@ export type ProviderEntry = {
   configError?: string
   credential: CredentialInfo | null
   balance: BalanceInfo
+  /** Present when the user saved a custom query for this provider. */
+  customQuery?: { enabled: boolean }
   modelCount: number
   models: ModelEntry[]
 }

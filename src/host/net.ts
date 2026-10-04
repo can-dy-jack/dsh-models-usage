@@ -20,7 +20,7 @@ const REQUEST_SCRIPT = [
   '  let out;',
   '  try {',
   '    const spec=JSON.parse(raw);',
-  '    const response=await fetch(spec.url,{method:spec.method||"GET",headers:spec.headers||{},signal:AbortSignal.timeout(spec.timeoutMs||15000)});',
+  '    const response=await fetch(spec.url,{method:spec.method||"GET",headers:spec.headers||{},body:spec.body,signal:AbortSignal.timeout(spec.timeoutMs||15000)});',
   '    out={status:response.status,body:await response.text()};',
   '  } catch (error) {',
   '    out={status:0,body:String((error&&error.message)||error)};',
@@ -48,24 +48,37 @@ function interpret(status: number, body: string): JsonResponse {
   }
 }
 
-async function directRequest(url: string, headers: Record<string, string>, signal: AbortSignal | undefined): Promise<JsonResponse> {
-  if (typeof fetch !== 'function') return { ok: false, error: '宿主进程没有可用的 fetch' }
+export interface RequestOptions {
+  method?: 'GET' | 'POST'
+  body?: string
+}
+
+/** Transport outcome before interpretation; `status: 0` is a network failure. */
+export type RawResponse = { status: number; body: string } | { status?: undefined; error: string }
+
+async function directRequest(url: string, headers: Record<string, string>, signal: AbortSignal | undefined, request: RequestOptions): Promise<RawResponse> {
+  if (typeof fetch !== 'function') return { error: '宿主进程没有可用的 fetch' }
   const timeout = AbortSignal.timeout(HTTP_TIMEOUT_MS)
   const combined = signal !== undefined && typeof AbortSignal.any === 'function'
     ? AbortSignal.any([signal, timeout])
     : timeout
   try {
-    const response = await fetch(url, { method: 'GET', headers, signal: combined })
-    return interpret(response.status, await response.text())
+    const response = await fetch(url, { method: request.method ?? 'GET', headers, body: request.body, signal: combined })
+    return { status: response.status, body: await response.text() }
   } catch (error) {
-    return interpret(0, errorText(error))
+    return { status: 0, body: errorText(error) }
   }
 }
 
-export async function requestJson(service: ServiceLookup, url: string, headers: Record<string, string>, signal: AbortSignal | undefined): Promise<JsonResponse> {
+export async function requestJson(service: ServiceLookup, url: string, headers: Record<string, string>, signal: AbortSignal | undefined, request: RequestOptions = {}): Promise<JsonResponse> {
+  const raw = await requestRaw(service, url, headers, signal, request)
+  return raw.status === undefined ? { ok: false, error: raw.error } : interpret(raw.status, raw.body)
+}
+
+export async function requestRaw(service: ServiceLookup, url: string, headers: Record<string, string>, signal: AbortSignal | undefined, request: RequestOptions = {}): Promise<RawResponse> {
   const subprocess = service<SubprocessService>('subprocess')
   if (subprocess === undefined || typeof subprocess.resolveExecutable !== 'function' || typeof subprocess.spawn !== 'function') {
-    return directRequest(url, headers, signal)
+    return directRequest(url, headers, signal, request)
   }
   let node: string
   try {
@@ -74,7 +87,7 @@ export async function requestJson(service: ServiceLookup, url: string, headers: 
     try {
       node = await subprocess.resolveExecutable('node.exe')
     } catch {
-      return directRequest(url, headers, signal)
+      return directRequest(url, headers, signal, request)
     }
   }
   let cwd = '.'
@@ -88,7 +101,7 @@ export async function requestJson(service: ServiceLookup, url: string, headers: 
       argv: [node, '-e', REQUEST_SCRIPT],
       cwd,
       stdio: {
-        stdin: { data: JSON.stringify({ url, method: 'GET', headers, timeoutMs: HTTP_TIMEOUT_MS }) },
+        stdin: { data: JSON.stringify({ url, method: request.method ?? 'GET', headers, body: request.body, timeoutMs: HTTP_TIMEOUT_MS }) },
         stdout: { mode: 'collect', maxBytes: 200_000 },
         stderr: { mode: 'collect', maxBytes: 4_096 },
       },
@@ -96,30 +109,30 @@ export async function requestJson(service: ServiceLookup, url: string, headers: 
       signal,
     })
   } catch {
-    return directRequest(url, headers, signal)
+    return directRequest(url, headers, signal, request)
   }
   let outcome: { exitCode: number }
   try {
     outcome = await handle.done
   } catch (error) {
-    return { ok: false, error: `查询子进程异常: ${errorText(error)}` }
+    return { error: `查询子进程异常: ${errorText(error)}` }
   }
   if (outcome.exitCode !== 0) {
     let detail = ''
     const stderr = handle.collected.stderr
     if (stderr !== undefined) detail = stderr.readFrom(0).text.trim().slice(0, 300)
-    return { ok: false, error: `查询子进程退出码 ${String(outcome.exitCode)}${detail.length > 0 ? `: ${detail}` : ''}` }
+    return { error: `查询子进程退出码 ${String(outcome.exitCode)}${detail.length > 0 ? `: ${detail}` : ''}` }
   }
   let parsed: { status?: unknown; body?: unknown }
   try {
     const stdout = handle.collected.stdout
     parsed = JSON.parse((stdout !== undefined ? stdout.readFrom(0).text : '') || '{}')
   } catch (error) {
-    return { ok: false, error: `无法解析查询结果: ${errorText(error)}` }
+    return { error: `无法解析查询结果: ${errorText(error)}` }
   }
   const status = typeof parsed.status === 'number' ? parsed.status : 0
   const body = typeof parsed.body === 'string' ? parsed.body : ''
-  return interpret(status, body)
+  return { status, body }
 }
 
 export function clientMetadata(options: PluginOptions): { version: string; locale: string; timezoneOffsetSeconds: number } {

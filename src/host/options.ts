@@ -16,6 +16,8 @@ export interface PluginOptions {
   includeModelDetails: boolean
   /** Also list declared-but-dormant routes (no registered adapter, no models). */
   includeDormantProviders: boolean
+  /** Custom query store path; empty uses `$DSH_HOME/storages/dsh-models-usage.custom-queries.json`. */
+  customQueryFile: string
 }
 
 export const DEFAULTS: PluginOptions = {
@@ -23,4 +25,5 @@ export const DEFAULTS: PluginOptions = {
   locale: 'zh-CN',
   includeModelDetails: true,
   includeDormantProviders: false,
+  customQueryFile: '',
 }

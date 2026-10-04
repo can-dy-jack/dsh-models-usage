@@ -6,6 +6,8 @@ import type { Translate } from '../i18n'
 import { formatUpdatedAt } from '../format'
 import { BalanceBlock } from './balance'
 import { ModelModal } from './models'
+import { CustomQueryModal } from './custom-query'
+import type { CustomApi } from '../custom'
 
 /** Keep elapsed-time copy current while the card stays open. */
 function UpdatedAt(props: { value: string; t: Translate }) {
@@ -32,15 +34,27 @@ export function ProviderCard(props: {
   refreshing?: boolean
   refreshDisabled?: boolean
   refreshError?: string
+  /** Absent without an active session; the editor needs the commands Remote. */
+  customApi?: CustomApi
+  onCustomSaved?(): void
 }) {
   const provider = props.provider
   const t = props.t
   const models = props.models ?? (Array.isArray(provider.models) ? provider.models : [])
   const updatedAt = provider.balance?.fetchedAt
   const [expanded, setExpanded] = React.useState(false)
+  const [editing, setEditing] = React.useState(false)
   const credential = provider.credential
   const badges: unknown[] = []
   if (provider.api) badges.push(<span key="api" className="dmu-badge">{provider.api}</span>)
+  if (provider.customQuery) {
+    badges.push(
+      <span key="custom" className={'dmu-badge' + (provider.customQuery.enabled ? ' ok' : '')}
+        title={t(provider.customQuery.enabled ? 'customActiveHint' : 'customDisabledHint')}>
+        {t(provider.customQuery.enabled ? 'customBadge' : 'customBadgeDisabled')}
+      </span>,
+    )
+  }
   if (credential && !credential.configured) {
     badges.push(
       <span
@@ -63,6 +77,20 @@ export function ProviderCard(props: {
             <span className={'dmu-badge dmu-providerState' + (provider.active ? ' ok' : '')}>
               {t(provider.active ? 'active' : 'dormant')}
             </span>
+            <button
+              type="button" className="dmu-providerCustom" aria-haspopup="dialog"
+              disabled={props.customApi === undefined}
+              title={t('customOpen', { provider: provider.displayName || provider.id })}
+              aria-label={t('customOpen', { provider: provider.displayName || provider.id })}
+              onClick={() => setEditing(true)}
+            >
+              <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" aria-hidden={true}>
+                <path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0" />
+                <circle cx={16} cy={6} r={2} />
+                <circle cx={10} cy={12} r={2} />
+                <circle cx={18} cy={18} r={2} />
+              </svg>
+            </button>
             <button
               type="button"
               className={'dmu-providerRefresh' + (props.refreshing ? ' is-refreshing' : '')}
@@ -101,6 +129,9 @@ export function ProviderCard(props: {
         {provider.configError ? <div className="dmu-error">{provider.configError}</div> : null}
       </div>
       {expanded ? <ModelModal provider={provider} models={models} t={t} onClose={() => setExpanded(false)} /> : null}
+      {editing && props.customApi !== undefined
+        ? <CustomQueryModal provider={provider} api={props.customApi} t={t} onClose={() => setEditing(false)} onSaved={() => props.onCustomSaved?.()} />
+        : null}
     </section>
   )
 }

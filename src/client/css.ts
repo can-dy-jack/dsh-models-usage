@@ -54,10 +54,10 @@ const CSS = `
 .dmu-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
 .dmu-cardTitle{min-width:0}
 .dmu-cardActions{display:flex;align-items:center;gap:4px;flex:none}
-.dmu-providerRefresh{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;padding:0;border:0;border-radius:var(--dsw-radius-sm,4px);background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer}
-.dmu-providerRefresh:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
-.dmu-providerRefresh:disabled{color:var(--dsw-alias-label-tertiary);cursor:default}
-.dmu-providerRefresh:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:2px}
+.dmu-providerRefresh,.dmu-providerCustom{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;padding:0;border:0;border-radius:var(--dsw-radius-sm,4px);background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer}
+.dmu-providerRefresh:hover:not(:disabled),.dmu-providerCustom:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
+.dmu-providerRefresh:disabled,.dmu-providerCustom:disabled{color:var(--dsw-alias-label-tertiary);cursor:default}
+.dmu-providerRefresh:focus-visible,.dmu-providerCustom:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:2px}
 .dmu-providerRefresh.is-refreshing svg{animation:dmu-refresh-spin 1s linear infinite}
 @keyframes dmu-refresh-spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.dmu-providerRefresh.is-refreshing svg{animation:none}}
@@ -144,6 +144,42 @@ const CSS = `
 .dmu-supportDetails{margin:5px 0 0;color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px;overflow-wrap:anywhere}
 .dmu-supportMeta{display:flex;align-items:center;gap:4px 12px;flex-wrap:wrap;margin-top:5px;color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:17px}
 .dmu-supportNote{margin:12px 0 0;color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:17px}
+.dmu-customModal{width:min(1080px,100%);height:min(860px,100%)}
+.dmu-customBody{flex:1;padding-bottom:12px}
+.dmu-customLayout{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:16px;align-items:start;min-width:0}
+.dmu-customEditor{display:flex;flex-direction:column;gap:10px;min-width:0}
+.dmu-customSide{position:sticky;top:0;display:flex;flex-direction:column;gap:10px;min-width:0;max-height:100%}
+.dmu-customSideHead{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.dmu-customGroup{display:flex;flex-direction:column;gap:6px;min-width:0;margin:0;padding:8px 10px 10px;border:0.5px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-sm,6px)}
+.dmu-customGroup>legend{padding:0 4px;color:var(--dsw-alias-label-primary);font-size:12px;font-weight:600}
+.dmu-customGroup>.dmu-button{align-self:flex-start}
+.dmu-customRule{display:flex;flex-direction:column;gap:6px;padding:8px 0;border-bottom:0.5px dashed var(--dsw-alias-border-l2)}
+.dmu-customRow{display:flex;align-items:flex-end;flex-wrap:wrap;gap:6px 8px;min-width:0}
+.dmu-customField{flex:1 1 140px}
+.dmu-customField.is-wide{flex:3 1 260px}
+.dmu-customRemove{flex:none;width:30px;height:30px;padding:0}
+.dmu-mono{font-family:var(--dsw-font-mono,ui-monospace,SFMono-Regular,Menlo,monospace)}
+.dmu-customBodyInput{height:auto;min-height:90px;padding:6px 8px;resize:vertical}
+.dmu-customTest{display:flex;flex-direction:column;gap:6px;min-height:0;max-height:420px;overflow:auto;padding:8px;border:0.5px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-sm,6px);background:var(--dsw-alias-bg-layer-1)}
+.dmu-customRaw{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-family:var(--dsw-font-mono,ui-monospace,monospace);font-size:11px}
+.dmu-customPreview .dmu-balance{margin-top:4px}
+.dmu-customFooter{flex:none;display:flex;align-items:flex-end;justify-content:space-between;gap:8px 16px;flex-wrap:wrap;padding:10px 20px 16px;border-top:0.5px solid var(--dsw-alias-border-l2)}
+.dmu-customMessages{flex:1 1 240px;min-width:0;max-height:96px;overflow-y:auto;font-size:12px}
+.dmu-customOk{color:var(--dsw-alias-state-success-primary)}
+.dmu-buttonPrimary{border-color:var(--dsw-alias-state-business-primary);color:var(--dsw-alias-state-business-primary)}
+.dmu-jsonList{margin:0;padding:0 0 0 14px;list-style:none;font-family:var(--dsw-font-mono,ui-monospace,monospace);font-size:11px;line-height:18px}
+.dmu-jsonRoot{padding-left:0}
+.dmu-jsonRow{display:flex;align-items:baseline;gap:4px;min-width:0}
+.dmu-jsonToggle{display:inline-block;flex:none;width:14px;padding:0;border:0;background:transparent;color:var(--dsw-alias-label-tertiary);font:inherit;cursor:pointer}
+.dmu-jsonKey,.dmu-jsonArray{flex:none;padding:0 2px;border:0;border-radius:3px;background:transparent;color:var(--dsw-alias-state-business-primary);font:inherit;cursor:pointer}
+.dmu-jsonKey:hover,.dmu-jsonArray:hover{background:var(--dsw-alias-interactive-bg-hover)}
+.dmu-jsonArray{color:var(--dsw-alias-label-secondary)}
+.dmu-jsonValue{min-width:0;color:var(--dsw-alias-label-secondary);overflow-wrap:anywhere}
+.dmu-jsonKey:focus-visible,.dmu-jsonArray:focus-visible,.dmu-jsonToggle:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:1px}
+@container dmu-modal (max-width:760px){
+  .dmu-customLayout{grid-template-columns:minmax(0,1fr)}
+  .dmu-customSide{position:static}
+}
 /* The refresh path runs a slash command; its transcript row is a pure side
    effect of the plugin's own UI, so it renders as a hidden stamp instead. */
 [data-chat-flow-kind="command"]:has([data-dmu-command-row]){display:none}

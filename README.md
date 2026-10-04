@@ -10,6 +10,24 @@ DeepSeek Harness 的组合插件（Host + Web Client 双半）：把**当前模�
 - 每个服务商的余额或额度：DeepSeek 开放平台、DeepSeek 账号、Moonshot AI（Kimi 开放平台）、Kimi Code、OpenCode Go、MiniMax 国内 / 国际站、Z.AI / 智谱 Coding Plan 走官方接口；火山方舟等未提供
   「用模型密钥查余额」接口的服务商会被**明确标注为不支持**并给出控制台入口，而不是伪造一个 0。
 
+### 自定义查询（任意服务商）
+
+内置未接入的服务商（如火山方舟等自定义 provider），或想改用其他接口的内置服务商，都可以点卡片右上角的
+「自定义查询」按钮自行配置：
+
+- **请求**：GET / POST、URL、Header、Query 参数、JSON 请求体；可用占位符 `{{apiKey}}`（默认该服务商的模型密钥，
+  也可填独立凭据引用如管理密钥环境变量名）、`{{baseURL}}`、`{{origin}}`、`{{providerId}}`、`{{now.iso}}`、
+  `{{now.unix}}`、`{{monthStart.iso}}`、`{{today}}`。
+- **响应映射**：用点路径（`data.balance_infos[0].total_balance`）取字段，`=CNY` 表示固定值；数组路径
+  `data.list[*]` 会为每个元素生成一条余额或额度，子字段写相对路径。余额支持金额、货币、赠送/充值/现金/代金券、
+  除数（以分计价填 100）；额度支持已用/剩余百分比（可选 0–1 比例）或 used/limit/remaining，以及重置时间
+  （自动识别、ISO、Unix 秒/毫秒、距今秒数）和 5 小时/周/月周期。
+- **测试**：用当前（未保存的）配置请求一次，显示 HTTP 状态和 JSON 树；先点选字段输入框再点 JSON 字段名即可填入路径，
+  右侧实时预览映射结果。
+- 保存后的配置优先于内置查询，可随时停用或删除。配置存在
+  `$DSH_HOME/storages/dsh-models-usage.custom-queries.json`（仅模板、不含密钥，权限 0600），可用插件选项
+  `customQueryFile` 改路径。
+
 余额永远是**服务商账户级**的，不是模型级：模型 id 只是价格/路由事实，钱包属于它背后的账号。
 
 ## 开发

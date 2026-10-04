@@ -24,29 +24,39 @@ export type PayloadState =
   | { kind: 'ready'; payload: UsagePayload; refreshing: boolean; refreshError?: string; providerRefreshes?: Record<string, ProviderRefreshState> }
   | { kind: 'error'; error: string }
 
+export type CommandResult = { ok: true; text: string } | { ok: false; error: string }
+
+/** Run one `/dsh-models-usage ...` line and unwrap the Remote envelope to its text. */
+export async function executeCommand(ctx: ClientContext, sessionId: string, args: string): Promise<CommandResult> {
+  try {
+    // The client Remote validates the business argument count: three
+    // (agentId, line, submittedAttachments) plus an optional AbortSignal.
+    const execution = await ctx.remote.commands.execute(sessionId, '/dsh-models-usage ' + args, [])
+    const envelope = isRecord(execution) && typeof execution.ok === 'boolean'
+      ? execution
+      : { ok: true, value: execution }
+    if (envelope.ok !== true) {
+      return { ok: false, error: String(envelope.error === undefined ? 'remote-error' : envelope.error) }
+    }
+    const value = envelope.value
+    const result = isRecord(value) && isRecord(value.result) ? value.result : undefined
+    if (result === undefined) return { ok: false, error: 'empty-result' }
+    if (result.kind === 'error') return { ok: false, error: String(result.text === undefined ? 'command-failed' : result.text) }
+    const text = typeof result.text === 'string' ? result.text : undefined
+    return text === undefined || text.length === 0 ? { ok: false, error: 'empty-result' } : { ok: true, text }
+  } catch (error) {
+    return { ok: false, error: String((error as { message?: unknown } | null)?.message || error) }
+  }
+}
+
 /** Always read the complete payload for the panel's shared cache. */
 async function requestPayload(ctx: ClientContext, sessionId: string, force: boolean, providerId?: string): Promise<ReadResult> {
-    const line = '/dsh-models-usage ' + (force ? 'refresh' : 'detail')
+    const args = (force ? 'refresh' : 'detail')
       + (providerId === undefined ? '' : ' provider=' + encodeURIComponent(providerId))
+    const executed = await executeCommand(ctx, sessionId, args)
+    if (!executed.ok) return executed
     try {
-      // The client Remote validates the business argument count: three
-      // (agentId, line, submittedAttachments) plus an optional AbortSignal.
-      const execution = await ctx.remote.commands.execute(sessionId, line, [])
-      const envelope = isRecord(execution) && typeof execution.ok === 'boolean'
-        ? execution
-        : { ok: true, value: execution }
-      if (envelope.ok !== true) {
-        return { ok: false, error: String(envelope.error === undefined ? 'remote-error' : envelope.error) }
-      }
-      const value = envelope.value
-      const result = isRecord(value) && isRecord(value.result) ? value.result : undefined
-      if (result === undefined) return { ok: false, error: 'empty-result' }
-      if (result.kind === 'error') return { ok: false, error: String(result.text === undefined ? 'command-failed' : result.text) }
-      const text = typeof result.text === 'string' ? result.text : undefined
-      if (text === undefined || text.length === 0) {
-        return { ok: false, error: 'empty-result' }
-      }
-      const payload: unknown = JSON.parse(text)
+      const payload: unknown = JSON.parse(executed.text)
       if (!isRecord(payload) || payload.ok !== true || payload.detail !== true
         || typeof payload.fetchedAt !== 'string' || !Array.isArray(payload.providers) || !isRecord(payload.counts)) {
         return { ok: false, error: 'invalid-payload' }

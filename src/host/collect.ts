@@ -4,7 +4,10 @@ import { asString } from '../shared'
 import { CACHE_RETRY_MS, CACHE_TTL_MS, hasBalanceFailure, mergeProviderPayload, projectPayload, retainBalances } from '../cache'
 import type { CredentialInfo, ProviderEntry, UsagePayload } from '../payload'
 import type { ServiceLookup } from './context'
+import type { CustomQuery } from '../custom-query'
 import { providerBalance } from './balance'
+import { customBalance, testCustomQuery, type CustomTestResult } from './custom'
+import { loadCustomStore } from './custom-store'
 import { describeCredential, describeRecordCredential, resolveRecordSecret, resolveSecret } from './credentials'
 import { balanceTarget } from './links'
 import { enrichModels, listModels, listProviderEntries, modelsFromConfig, type ProviderDraft } from './models'
@@ -16,16 +19,18 @@ export interface HostEnv {
   options: PluginOptions
 }
 
-async function collectProvider(env: HostEnv, entry: ProviderDraft, settingsRows: Map<string, SettingsRow>, signal: AbortSignal | undefined): Promise<ProviderEntry> {
+interface ProviderAccess {
+  settingsNode: Record<string, unknown> | undefined
+  baseURL: string | undefined
+  credential: CredentialInfo | null
+  resolveKey: () => Promise<string | undefined>
+  label: string | undefined
+}
+
+async function providerAccess(env: HostEnv, entry: ProviderDraft, settingsRows: Map<string, SettingsRow>): Promise<ProviderAccess> {
   const settingsNode = configNodeAt(settingsRows, entry.settingsNs, entry.settingsPath)
   const baseURL = asString(settingsNode?.baseURL)
   const apiKeyEnv = asString(settingsNode?.apiKeyEnv)
-  const { models: advertised, error: catalogError } = await listModels(env.service, entry.id)
-  let models = advertised.length > 0 ? advertised : modelsFromConfig(settingsNode)
-  if (env.options.includeModelDetails !== false && models.length > 0) {
-    models = await enrichModels(env.service, entry.id, models)
-  }
-
   // Credential: a settings reference first, then the interactive pi-ai record.
   const byReference = await describeCredential(env.service, apiKeyEnv)
   const byRecord = byReference === null || byReference.configured !== true
@@ -43,8 +48,22 @@ async function collectProvider(env: HostEnv, entry: ProviderDraft, settingsRows:
     return undefined
   }
   const label = apiKeyEnv ?? byRecord?.key ?? (balanceTarget(entry.id, baseURL).kind === 'deepseek' ? 'DEEPSEEK_API_KEY' : undefined)
+  return { settingsNode, baseURL, credential, resolveKey, label }
+}
 
-  const balance = await providerBalance(env.service, env.options, entry.id, baseURL, resolveKey, label, signal)
+async function collectProvider(env: HostEnv, entry: ProviderDraft, settingsRows: Map<string, SettingsRow>, customQueries: Record<string, CustomQuery>, signal: AbortSignal | undefined): Promise<ProviderEntry> {
+  const { settingsNode, baseURL, credential, resolveKey, label } = await providerAccess(env, entry, settingsRows)
+  const { models: advertised, error: catalogError } = await listModels(env.service, entry.id)
+  let models = advertised.length > 0 ? advertised : modelsFromConfig(settingsNode)
+  if (env.options.includeModelDetails !== false && models.length > 0) {
+    models = await enrichModels(env.service, entry.id, models)
+  }
+
+  // A saved, enabled custom query takes precedence over the built-in lookup.
+  const custom = customQueries[entry.id]
+  const balance = custom?.enabled === true
+    ? await customBalance({ service: env.service, providerId: entry.id, baseURL, resolveKey, signal }, custom)
+    : await providerBalance(env.service, env.options, entry.id, baseURL, resolveKey, label, signal)
   return {
     id: entry.id,
     displayName: entry.displayName ?? entry.routeName ?? entry.id,
@@ -57,6 +76,7 @@ async function collectProvider(env: HostEnv, entry: ProviderDraft, settingsRows:
     configError: entry.configError ?? catalogError,
     credential,
     balance,
+    ...(custom !== undefined ? { customQuery: { enabled: custom.enabled } } : {}),
     modelCount: models.length,
     models,
   }
@@ -67,9 +87,10 @@ async function buildPayload(env: HostEnv, providerId?: string): Promise<UsagePay
   const allEntries = listProviderEntries(env.service, env.options)
   const entries = providerId === undefined ? allEntries : allEntries.filter((entry) => entry.id === providerId)
   if (providerId !== undefined && entries.length === 0) throw new Error(`未找到服务商: ${providerId}`)
+  const customQueries = loadCustomStore(env.options).store.queries
   const providers: ProviderEntry[] = []
   for (const entry of entries) {
-    providers.push(await collectProvider(env, entry, settingsRows, undefined))
+    providers.push(await collectProvider(env, entry, settingsRows, customQueries, undefined))
   }
   const payload: UsagePayload = {
     ok: true,
@@ -97,13 +118,27 @@ function waitForPayload<T>(pending: Promise<T>, signal: AbortSignal | undefined)
   })
 }
 
+/** Run one unsaved custom query against a provider's own base URL and key. */
+export async function runCustomTest(env: HostEnv, providerId: string, query: CustomQuery, signal: AbortSignal | undefined): Promise<CustomTestResult> {
+  const entry = listProviderEntries(env.service, env.options).find((candidate) => candidate.id === providerId)
+  if (entry === undefined) throw new Error(`未找到服务商: ${providerId}`)
+  const { baseURL, resolveKey } = await providerAccess(env, entry, readSettingsRows(env.service))
+  return testCustomQuery({ service: env.service, providerId, baseURL, resolveKey, signal }, query)
+}
+
+export type PayloadLoader = {
+  (detail: boolean, signal: AbortSignal | undefined, force?: boolean, providerId?: string): Promise<UsagePayload>
+  /** Expire the shared cache after a custom query is saved or removed. */
+  invalidate(): void
+}
+
 /** One complete cache and collection shared by summary/detail/refresh and tools. */
-export function createPayloadLoader(env: HostEnv): (detail: boolean, signal: AbortSignal | undefined, force?: boolean, providerId?: string) => Promise<UsagePayload> {
+export function createPayloadLoader(env: HostEnv): PayloadLoader {
   let cache: { expiresAt: number; payload: UsagePayload } | undefined
   let pending: Promise<UsagePayload> | undefined
   let failure: { retryAt: number; error: unknown } | undefined
   const scopedPending = new Map<string, Promise<UsagePayload>>()
-  return async function payloadFor(detail: boolean, signal: AbortSignal | undefined, force = false, providerId?: string): Promise<UsagePayload> {
+  const payloadFor = async (detail: boolean, signal: AbortSignal | undefined, force = false, providerId?: string): Promise<UsagePayload> => {
     signal?.throwIfAborted()
     if (providerId !== undefined) {
       if (pending !== undefined) {
@@ -157,4 +192,10 @@ export function createPayloadLoader(env: HostEnv): (detail: boolean, signal: Abo
     const payload = await waitForPayload(pending, signal)
     return { ...projectPayload(payload, detail), cacheRemainingMs: Math.max(0, (cache?.expiresAt ?? 0) - Date.now()) }
   }
+  return Object.assign(payloadFor, {
+    invalidate() {
+      if (cache !== undefined) cache.expiresAt = 0
+      failure = undefined
+    },
+  })
 }

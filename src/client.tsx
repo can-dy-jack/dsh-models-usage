@@ -22,6 +22,7 @@
  *   format.ts    currency/amount/model-meta formatting
  *   session.ts   active-session resolution
  *   data.ts      commands-Remote reader + payload hook
+ *   custom.ts    custom query editor calls (custom-get/set/delete/test)
  *   filter.ts    pure search/capability projections + instance filter state
  *   ui/          TSX components (balance, filters, models, card, panel, icon)
  */
@@ -29,6 +30,7 @@
 import { initReact, React } from './client/react'
 import { ensureStyle } from './client/css'
 import { createReader } from './client/data'
+import { createCustomApi } from './client/custom'
 import { createFilterStore } from './client/filter'
 import { isRecord } from './shared'
 import { activeLanguage, translate } from './client/i18n'
@@ -104,7 +106,8 @@ window.__ModuleLoader__.load({
             }, 5000)
             return () => clearInterval(timer)
           }, [])
-          return <ModelsUsagePanel read={read} filters={filters} sessionId={sessionId} lang={lang} diag={diag} openSettings={() => openSettingsSection(ctx)} />
+          return <ModelsUsagePanel read={read} filters={filters} sessionId={sessionId} lang={lang} diag={diag} openSettings={() => openSettingsSection(ctx)}
+            customApi={(id) => createCustomApi(ctx, id)} />
         },
       ))
 

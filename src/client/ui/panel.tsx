@@ -9,8 +9,9 @@ import { ProviderCard } from './card'
 import { FilterControls, FilterSection, NoFilterResults } from './filters'
 import { BalanceSupportModal } from './support'
 import { LoadingState } from './loading'
+import type { CustomApi } from '../custom'
 
-export function ModelsUsagePanel(props: { read: Reader; diag: string; lang: string; sessionId: string | undefined; filters?: FilterStore; openSettings?(): void }) {
+export function ModelsUsagePanel(props: { read: Reader; diag: string; lang: string; sessionId: string | undefined; filters?: FilterStore; openSettings?(): void; customApi?(sessionId: string): CustomApi }) {
   const read = props.read
   const diag = props.diag
   const lang = props.lang
@@ -28,6 +29,10 @@ export function ModelsUsagePanel(props: { read: Reader; diag: string; lang: stri
   const refreshing = state.kind === 'loading' || (state.kind === 'ready' && state.refreshing)
   const providerRefreshes = state.kind === 'ready' ? state.providerRefreshes : undefined
   const providerRefreshing = Object.values(providerRefreshes ?? {}).some((entry) => entry.refreshing)
+  const customApi = React.useRef<{ sessionId?: string; api?: CustomApi }>({})
+  if (props.customApi !== undefined && sessionId !== undefined && sessionId.length > 0 && customApi.current.sessionId !== sessionId) {
+    customApi.current = { sessionId, api: props.customApi(sessionId) }
+  }
 
   const header = (
     <div className="dmu-head">
@@ -99,6 +104,8 @@ export function ModelsUsagePanel(props: { read: Reader; diag: string; lang: stri
             refreshing={providerRefreshes?.[provider.id]?.refreshing}
             refreshDisabled={refreshing}
             refreshError={providerRefreshes?.[provider.id]?.error}
+            customApi={customApi.current.sessionId === sessionId ? customApi.current.api : undefined}
+            onCustomSaved={() => { void read.refreshProvider(sessionId, provider.id) }}
           />
         ))}</div>
   }

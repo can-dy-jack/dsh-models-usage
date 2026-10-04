@@ -19,6 +19,9 @@ TypeScript 源码（`src/`）→ esbuild 转译产物（`lib/`，gitignored）�
 | `src/host/moonshot.ts` | Moonshot AI / Kimi 开放平台按用量扣费账户的余额响应解析；可用余额、现金和代金券直接采用官方值，国内 CNY / 国际 USD。 |
 | `src/host/zai.ts` | Z.AI / 智谱 Coding Plan 官方额度解析；兼容 Token / Credits 的 5 小时、周窗口和旧套餐 MCP 月窗口，采用官方已用百分比和毫秒重置时间。 |
 | `src/host/minimax.ts` | MiniMax 国内 / 国际账户余额及 Token / Coding Plan 额度解析；按官方 CLI 的密钥类型选择接口，兼容旧计数、新百分比、资源池、周加成及不限量。 |
+| `src/custom-query.ts` | 自定义查询共享契约：配置类型、点路径/`[*]` 求值、`validateCustomQuery`、占位符模板（`{{apiKey}}` 等）、`mapCustomResponse`（Host 执行与前端预览共用）、命令载荷 base64url 编解码。 |
+| `src/host/custom.ts` / `src/host/custom-store.ts` | 自定义查询执行（复用模型密钥或 `credentialRef`，经有界传输、回显密钥脱敏）与持久化（`$DSH_HOME/storages/dsh-models-usage.custom-queries.json`，0600 原子写，仅存模板）。已保存并启用的配置**优先于内置查询**，任何 provider 都可用。 |
+| `src/client/custom.ts` / `src/client/ui/custom-query.tsx` | 卡片「自定义查询」按钮打开的编辑弹窗：请求/映射表单、Host 测试（`custom-test`）、JSON 树点选填路径、实时预览，经 `custom-get/set/delete/test` 子命令读写。 |
 | `src/cache.ts` | 两半共享的 60s 缓存/15s 重试策略、summary 投影、查询失败时保留旧余额。前端缓存属于插件实例，切换面板/会话不清空；`refresh` 绕过缓存。 |
 | `tools/build.mjs` | esbuild **bundle**：`src/index.ts`→`lib/index.js`（node, esm, `external: @deepseek-ai/*`）、`src/client.ts`→`lib/client.js`（browser, **iife**——产物以 script 方式执行，绝不能残留 import/export）。`--watch` 可用。 |
 | `tsconfig.json` | 只做 `tsc --noEmit`（strict）；产物由 esbuild 出。 |
@@ -59,6 +62,10 @@ TSX 用 classic transform（`React.createElement`/`React.Fragment`），`React`
 - **`peerDependencies` 不可删**：本地路径安装走 `link:` 软链 → `linked` 解析分层，
   只拦截 `peerDependencies` 里声明过的 `@deepseek-ai/*` 包名。删掉会
   `failed to import`。
+- **自定义查询命令**：`custom-get|custom-delete provider=<id>`、`custom-set|custom-test provider=<id> <base64url JSON>`
+  （命令行按空白分词，载荷必须 base64url）；配置文件只存模板，`{{apiKey}}` 只在 Host 内存与子进程 stdin 中出现，
+  测试返回的原始响应会把回显的密钥替换为 `***`。卡片上的「自定义查询」按钮类名是 `dmu-providerCustom`
+  （不要复用 `dmu-providerRefresh`，现有 harness 按该类名定位刷新按钮）。
 - **client→host 通道是内置 `commands` Remote**：
   `ctx.remote.commands.execute(sessionId, line, [] /*必须传*/, signal?)`，恰好 3 个业务参数；
   `sessionId` 必须绑定活动会话——没有活动会话时面板只能提示先开会话。
@@ -73,7 +80,8 @@ TSX 用 classic transform（`React.createElement`/`React.Fragment`），`React`
 ## 配置（`cordis.patch.yml` 该行的 `config`）
 
 `clientVersion`（默认 `0.2.0-rc.2`）、`locale`（`zh-CN`）、
-`includeModelDetails`（`true`）、`includeDormantProviders`（`false`）——
+`includeModelDetails`（`true`）、`includeDormantProviders`（`false`）、
+`customQueryFile`（空=默认自定义查询存储路径）——
 默认值见 `src/index.ts` 的 `DEFAULTS`。
 
 ## 验证
@@ -87,6 +95,7 @@ node .scratch/cache-harness.mjs    # mock 服务/Remote/时钟验证缓存、并
 node .scratch/filter-harness.mjs   # 纯筛选函数 + 实际 client bundle 验证搜索、弹窗、条件保留与请求次数
 node .scratch/opencode-harness.mjs # OpenCode Go 响应契约、路由、凭据、错误、单供应商刷新及额度展示
 node .scratch/moonshot-harness.mjs # Moonshot 地区与币种、余额响应、凭据、单供应商刷新及现金/代金券展示
+node .scratch/custom-query-harness.mjs # 自定义查询：路径/映射/模板/存储/命令/覆盖内置/密钥脱敏/编辑弹窗
 node .scratch/minimax-harness.mjs  # MiniMax 地区/协议、账户/套餐、百分比/旧计数、凭据、单供应商刷新及中英文展示
 node .scratch/xiaomi-harness.mjs   # Xiaomi 四路由/自定义协议、不支持提示、控制台入口及单供应商刷新；不读取密钥或调用查询接口
 node .scratch/zai-harness.mjs      # Z.AI 国内/国际协议、Token/Credits/MCP 额度、原始 Authorization、普通 API 不支持及单供应商刷新

@@ -27,6 +27,7 @@
  *   models.ts      provider enumeration + model catalogs
  *   credentials.ts credential probes and secret resolution
  *   balance.ts     account/provider balance queries
+ *   custom.ts      user-defined query execution (+ custom-store.ts persistence)
  *   collect.ts     payload assembly + cache
  */
 
@@ -34,7 +35,9 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 
 import { isRecord } from './shared'
 import { createServiceLookup, type PluginContext } from './host/context'
-import { createPayloadLoader } from './host/collect'
+import { createPayloadLoader, runCustomTest } from './host/collect'
+import { customStorePath, readCustomQuery, writeCustomQuery } from './host/custom-store'
+import { decodeCommandJson, validateCustomQuery } from './custom-query'
 import { COMMAND_NAME, DEFAULTS, type PluginOptions } from './host/options'
 
 export const name = 'dsh-models-usage'
@@ -43,18 +46,57 @@ export const inject = ['llm', 'settings', 'credentials', 'commands', 'tools', 's
 export function apply(ctx: PluginContext, config: unknown) {
   const options: PluginOptions = { ...DEFAULTS, ...(isRecord(config) ? config : {}) }
   const service = createServiceLookup(ctx)
-  const payloadFor = createPayloadLoader({ service, options })
+  const env = { service, options }
+  const payloadFor = createPayloadLoader(env)
+
+  /** Custom query editor actions; payloads are base64url JSON (lines split on spaces). */
+  async function handleCustomCommand(args: string[]): Promise<Record<string, unknown>> {
+    const action = args[0].toLowerCase()
+    const providerArg = args.find((arg) => arg.startsWith('provider='))
+    const encoded = args.slice(1).filter((arg) => !arg.startsWith('provider='))
+    if (providerArg === undefined || encoded.length > 1) throw new Error(`用法: ${action} provider=<id> [<base64url>]`)
+    const providerId = decodeURIComponent(providerArg.slice('provider='.length))
+    const base = { ok: true, command: COMMAND_NAME, action, providerId }
+    if (action === 'custom-get') {
+      const { query, error } = readCustomQuery(options, providerId)
+      return { ...base, query: query ?? null, storePath: customStorePath(options), ...(error !== undefined ? { storeError: error } : {}) }
+    }
+    if (action === 'custom-delete') {
+      writeCustomQuery(options, providerId, undefined)
+      payloadFor.invalidate()
+      return base
+    }
+    if (action !== 'custom-set' && action !== 'custom-test') throw new Error(`未知子命令: ${action}`)
+    if (encoded.length !== 1) throw new Error(`${action} 需要配置载荷`)
+    let raw: unknown
+    try {
+      raw = decodeCommandJson(encoded[0])
+    } catch (error) {
+      throw new Error(`配置载荷无法解析: ${error instanceof Error ? error.message : String(error)}`)
+    }
+    const validated = validateCustomQuery(raw)
+    if (!validated.ok) return { ...base, ok: false, errors: validated.errors }
+    if (action === 'custom-test') {
+      return { ...base, test: await runCustomTest(env, providerId, validated.query, undefined) }
+    }
+    writeCustomQuery(options, providerId, validated.query)
+    payloadFor.invalidate()
+    return { ...base, query: validated.query }
+  }
 
   // ─── Remote entry point (the Client reaches this through `remote.commands`) ──
 
   ctx.commands.register({
     name: COMMAND_NAME,
     description: '列出当前模型列表中的服务商与模型，并查询可获得的余额信息。',
-    input: { hint: 'summary | detail | refresh [provider=<id>]' },
+    input: { hint: 'summary | detail | refresh [provider=<id>] | custom-get|custom-set|custom-delete|custom-test provider=<id> [<base64url>]' },
     recordInput: false,
     handler: async (invocation) => {
       try {
         const args = String(invocation.rawInput ?? '').trim().split(/\s+/).filter(Boolean)
+        if (args[0]?.toLowerCase().startsWith('custom-')) {
+          return { kind: 'success', text: JSON.stringify(await handleCustomCommand(args)) }
+        }
         const modes = args.map((arg) => arg.toLowerCase())
         const providerArgs = args.filter((arg) => arg.startsWith('provider='))
         if (providerArgs.length > 1 || args.some((arg) => !['summary', 'detail', 'refresh'].includes(arg.toLowerCase()) && !arg.startsWith('provider='))) {
