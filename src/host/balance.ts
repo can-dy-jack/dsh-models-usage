@@ -8,11 +8,12 @@
 import { errorText, isRecord } from '../shared'
 import type { BalanceInfo, Wallet } from '../payload'
 import type { DeepseekAccountService, ServiceLookup } from './context'
-import { balanceTarget, consoleLink, isAntLingRoute } from './links'
+import { balanceTarget, consoleLink, isAntLingRoute, qwenBillingRoute, xiaomiBillingMode, zaiPlatform } from './links'
 import { parseKimiUsage } from './kimi'
 import { parseMoonshotBalance } from './moonshot'
 import { parseMiniMaxBalance, parseMiniMaxUsage } from './minimax'
 import { parseOpenCodeGoUsage } from './opencode'
+import { parseZaiUsage } from './zai'
 import { clientMetadata, requestJson } from './net'
 import type { PluginOptions } from './options'
 
@@ -58,17 +59,37 @@ export async function providerBalance(
   if (target.kind === 'account') return accountBalance(service, options)
   if (target.kind === 'unsupported') {
     const antLing = isAntLingRoute(providerId, baseURL)
+    const xiaomi = xiaomiBillingMode(providerId, baseURL)
+    const qwen = qwenBillingRoute(providerId, baseURL)
+    const zai = zaiPlatform(providerId, baseURL)
     return {
       status: 'unsupported',
       message: antLing
         ? '暂不支持百灵余额查询；模型 API Key 无法认证控制台钱包接口，请登录官方控制台查看'
+        : xiaomi === 'api'
+          ? 'Xiaomi MiMo 普通 API 余额需登录控制台查看；官方未公开使用模型 API Key 查询账户余额的接口'
+        : xiaomi === 'token-plan'
+          ? 'Xiaomi Token Plan 额度需登录控制台查看；套餐密钥不能用于控制台登录，官方未公开密钥额度查询接口'
+        : qwen?.mode === 'token-plan'
+          ? 'Qwen Token Plan 额度不支持用套餐密钥查询；官方百炼 CLI 用量查询要求控制台认证，请登录对应地区控制台查看'
+        : qwen?.mode === 'coding-plan'
+          ? 'Qwen Coding Plan 额度不支持用套餐密钥查询；官方百炼 CLI 用量查询要求控制台认证，请登录对应地区控制台查看'
+        : qwen?.mode === 'api'
+          ? '百炼模型 API Key 无法查询阿里云账户余额；官方账单接口需要额外 AccessKey 和账单权限，请登录控制台查看'
+        : zai !== undefined
+          ? 'Z.AI / 智谱仅支持 Coding Plan 额度查询；普通 API 现金余额没有公开的模型密钥查询接口，请登录控制台查看'
         : '该服务商未提供可用模型密钥查询的余额接口',
-      ...(antLing ? { messageKey: 'supportAntLingConsoleDetails' } : {}),
+      ...(antLing ? { messageKey: 'supportAntLingConsoleDetails' }
+        : xiaomi !== undefined ? { messageKey: xiaomi === 'api' ? 'supportXiaomiApiDetails' : 'supportXiaomiPlanDetails' }
+        : qwen !== undefined ? { messageKey: qwen.mode === 'api' ? 'supportQwenApiDetails'
+          : qwen.mode === 'coding-plan' ? 'supportQwenCodingDetails' : 'supportQwenUsageDetails' }
+        : zai !== undefined ? { messageKey: 'supportZaiApiUnsupportedDetails' } : {}),
       link: consoleLink(providerId, baseURL),
     }
   }
   const credentialLabel = label ?? (target.kind === 'openrouter' ? 'OpenRouter API Key'
     : target.kind === 'moonshot' || target.kind === 'moonshot-cn' ? 'Moonshot API Key'
+    : target.kind === 'zai' || target.kind === 'zai-cn' ? 'Z.AI Coding Plan API Key'
     : target.kind === 'minimax' || target.kind === 'minimax-cn' ? 'MiniMax API / Subscription Key' : undefined)
   if (credentialLabel === undefined) {
     return { status: 'unsupported', message: '未声明凭据引用，无法查询余额', link: consoleLink(providerId, baseURL) }
@@ -78,10 +99,15 @@ export async function providerBalance(
     return { status: 'no-credential', message: `未配置 ${credentialLabel}`, link: consoleLink(providerId, baseURL) }
   }
   const minimax = target.kind === 'minimax' || target.kind === 'minimax-cn'
+  const zai = target.kind === 'zai' || target.kind === 'zai-cn'
   // Use the official CLI's key-type selection; never probe a different region.
   const minimaxAccount = minimax && key.startsWith('sk-api-')
   const endpoint = minimaxAccount ? target.balanceURL : target.url
-  const headers = { Authorization: `Bearer ${key}`, Accept: 'application/json', ...(minimax ? { 'Content-Type': 'application/json' } : {}) }
+  // The official GLM usage plugin sends the raw API key without a Bearer prefix.
+  const headers = { Authorization: zai ? key : `Bearer ${key}`, Accept: 'application/json',
+    ...(minimax || zai ? { 'Content-Type': 'application/json' } : {}),
+    ...(zai ? { 'Accept-Language': 'en-US,en' } : {}),
+  }
   const response = await requestJson(service, endpoint, headers, signal)
   if (response.ok !== true) {
     const message = target.kind === 'opencode-go' && response.status === 403
@@ -90,10 +116,13 @@ export async function providerBalance(
         ? 'OpenRouter 拒绝余额查询，请确认 API Key 有账户余额查询权限（官方文档要求管理密钥）(HTTP 403)'
       : minimax && (response.status === 401 || response.status === 403)
         ? `MiniMax 拒绝查询，请检查密钥类型及国内/国际地区是否匹配 (HTTP ${response.status})`
+      : zai && (response.status === 401 || response.status === 403)
+        ? `Z.AI 拒绝额度查询，请检查国内/国际地区、Coding Plan 状态及密钥权限 (HTTP ${response.status})`
       : response.error
     return { status: 'failed', message, link: consoleLink(providerId, baseURL) }
   }
   const data = response.data
+  if (zai) return { ...parseZaiUsage(data), endpoint, link: consoleLink(providerId, baseURL) }
   if (minimax) {
     return {
       ...(minimaxAccount ? parseMiniMaxBalance(data, target.kind === 'minimax-cn' ? 'CNY' : 'USD') : parseMiniMaxUsage(data)),

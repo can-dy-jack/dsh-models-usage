@@ -9,11 +9,13 @@ export const SUPPORTED_BALANCE_QUERIES = [
   { id: 'opencode-go', providers: ['opencode-go'], name: 'supportOpenCodeGo', statusLabel: 'supportUsageReady', details: 'supportOpenCodeGoDetails', credential: 'supportGoApiKey' },
   { id: 'minimax', providers: ['minimax'], name: 'supportMinimax', statusLabel: 'supportBalanceUsageReady', details: 'supportMinimaxDetails', credential: 'supportMinimaxKey', documentation: 'https://github.com/MiniMax-AI/cli/blob/main/src/client/endpoints.ts' },
   { id: 'minimax-cn', providers: ['minimax-cn'], name: 'supportMinimaxCn', statusLabel: 'supportBalanceUsageReady', details: 'supportMinimaxCnDetails', credential: 'supportMinimaxKey', documentation: 'https://github.com/MiniMax-AI/cli/blob/main/src/client/endpoints.ts' },
+  { id: 'zai', providers: ['zai'], name: 'supportZai', statusLabel: 'supportUsageReady', details: 'supportZaiUsageDetails', credential: 'supportZaiApiKey', documentation: 'https://github.com/zai-org/zai-coding-plugins/blob/main/plugins/glm-plan-usage/skills/usage-query-skill/scripts/query-usage.mjs' },
+  { id: 'zai-cn', providers: ['zai-coding-cn'], name: 'supportZaiCn', statusLabel: 'supportUsageReady', details: 'supportZaiUsageDetails', credential: 'supportZaiApiKey', documentation: 'https://github.com/zai-org/zai-coding-plugins/blob/main/plugins/glm-plan-usage/skills/usage-query-skill/scripts/query-usage.mjs' },
 ] as const
 
 export type SupportedBalanceQueryKind = typeof SUPPORTED_BALANCE_QUERIES[number]['id']
 
-export type ProviderQuerySupportStatus = 'supported' | 'not-integrated' | 'no-public-api'
+export type ProviderQuerySupportStatus = 'supported' | 'unsupported' | 'not-integrated' | 'no-public-api'
 
 export type ProviderQuerySupport = {
   id: string
@@ -66,19 +68,23 @@ export const BUILTIN_PROVIDER_QUERY_SUPPORT: readonly ProviderQuerySupport[] = [
   pending('openai', 'OpenAI', 'supportOpenaiUsageDetails', 'https://platform.openai.com/docs/api-reference/usage'),
   noPublicApi('openai-codex', 'OpenAI Codex', 'https://developers.openai.com/codex/pricing/', 'supportSubscriptionNoPublicApiDetails'),
   noPublicApi('opencode', 'OpenCode Zen', 'https://opencode.ai/docs/zen/', 'supportZenNoPublicApiDetails'),
-  pending('qwen-token-plan', 'Qwen Token Plan', 'supportQwenUsageDetails', 'https://help.aliyun.com/zh/model-studio/cli/usage-quota'),
-  pending('qwen-token-plan-cn', 'Qwen Token Plan CN', 'supportQwenUsageDetails', 'https://help.aliyun.com/zh/model-studio/cli/usage-quota'),
-  pending('qwen-token-plan-individual', 'Qwen Token Plan Individual', 'supportQwenUsageDetails', 'https://help.aliyun.com/zh/model-studio/cli/usage-quota'),
+  ...[
+    { id: 'qwen-token-plan', name: 'supportQwenTokenPlan' },
+    { id: 'qwen-token-plan-cn', name: 'supportQwenTokenPlanCn' },
+    { id: 'qwen-token-plan-individual', name: 'supportQwenTokenPlanIndividual' },
+  ].map((provider): ProviderQuerySupport => ({
+    ...provider, translatedName: true, status: 'unsupported', statusLabel: 'balanceUnsupported',
+    details: 'supportQwenUsageDetails',
+    documentation: 'https://github.com/modelstudioai/cli/blob/main/skills/bailian-cli/reference/usage.md',
+  })),
   noPublicApi('radius', 'Radius', 'https://pi.dev/models/radius/balanced'),
   pending('together', 'Together', 'supportTogetherUsageDetails', 'https://docs.together.ai/docs/changelog'),
   pending('vercel-ai-gateway', 'Vercel AI Gateway', 'supportVercelBalanceDetails', 'https://ai-sdk.dev/providers/ai-sdk-providers/ai-gateway'),
   pending('xai', 'xAI', 'supportXaiBalanceDetails', 'https://docs.x.ai/developers/rest-api-reference/management'),
-  noPublicApi('xiaomi', 'Xiaomi MiMo', 'https://mimo.mi.com/docs/pricing'),
-  noPublicApi('xiaomi-token-plan-ams', 'Xiaomi Token Plan AMS', 'https://mimo.mi.com/'),
-  noPublicApi('xiaomi-token-plan-cn', 'Xiaomi Token Plan CN', 'https://mimo.mi.com/'),
-  noPublicApi('xiaomi-token-plan-sgp', 'Xiaomi Token Plan SGP', 'https://mimo.mi.com/'),
-  pending('zai', 'Z.AI', 'supportZaiUsageDetails', 'https://github.com/zai-org/zai-coding-plugins/tree/main/plugins/glm-plan-usage'),
-  pending('zai-coding-cn', 'Z.AI Coding CN', 'supportZaiUsageDetails', 'https://github.com/zai-org/zai-coding-plugins/tree/main/plugins/glm-plan-usage'),
+  noPublicApi('xiaomi', 'Xiaomi MiMo', 'https://mimo.mi.com/docs/en-US/quick-start/faq/payment', 'supportXiaomiApiDetails'),
+  noPublicApi('xiaomi-token-plan-ams', 'Xiaomi Token Plan AMS', 'https://mimo.mi.com/docs/en-US/quick-start/faq/api-integration', 'supportXiaomiPlanDetails'),
+  noPublicApi('xiaomi-token-plan-cn', 'Xiaomi Token Plan CN', 'https://mimo.mi.com/docs/en-US/quick-start/faq/api-integration', 'supportXiaomiPlanDetails'),
+  noPublicApi('xiaomi-token-plan-sgp', 'Xiaomi Token Plan SGP', 'https://mimo.mi.com/docs/en-US/quick-start/faq/api-integration', 'supportXiaomiPlanDetails'),
 ]
 
 export type ProviderQuerySupportGroup = {

@@ -12,7 +12,7 @@ export function quotaLabel(entry: QuotaWindow, t: Translate): string {
     const scope = entry.scope === 'general' ? t('quotaScopeGeneral') : entry.scope === 'video' ? t('quotaScopeVideo') : entry.scope
     return scope ? t('quotaScope', { scope, period }) : period
   }
-  if (['five-hour', 'weekly', 'monthly', 'month-total', 'month-code'].includes(entry.id)) return t('quota-' + entry.id)
+  if (['five-hour', 'weekly', 'monthly', 'month-total', 'month-code', 'mcp-monthly'].includes(entry.id)) return t('quota-' + entry.id)
   if (entry.name) return entry.name
   if (entry.windowSeconds) return t('quotaWindow', { hours: entry.windowSeconds / 3600 })
   return t('quota')

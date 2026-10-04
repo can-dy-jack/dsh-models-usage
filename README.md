@@ -7,7 +7,7 @@ DeepSeek Harness 的组合插件（Host + Web Client 双半）：把**当前模�
 
 - 现在的模型列表里到底有哪些 provider / model？（含是否已激活、baseURL、协议、缺少凭据提示）
 - 每个模型的上下文窗口、最大输出、输入模态（text/image）、可用的 reasoning effort。
-- 每个服务商的余额或额度：DeepSeek 开放平台、DeepSeek 账号、Moonshot AI（Kimi 开放平台）、Kimi Code、OpenCode Go、MiniMax 国内 / 国际站走官方接口；火山方舟等未提供
+- 每个服务商的余额或额度：DeepSeek 开放平台、DeepSeek 账号、Moonshot AI（Kimi 开放平台）、Kimi Code、OpenCode Go、MiniMax 国内 / 国际站、Z.AI / 智谱 Coding Plan 走官方接口；火山方舟等未提供
   「用模型密钥查余额」接口的服务商会被**明确标注为不支持**并给出控制台入口，而不是伪造一个 0。
 
 余额永远是**服务商账户级**的，不是模型级：模型 id 只是价格/路由事实，钱包属于它背后的账号。
@@ -181,6 +181,7 @@ Host 和浏览器分别保留一份插件实例内的完整载荷，默认有效
 | MiniMax 国内 / 国际账户余额 | `GET /account/query_balance`，Bearer 普通 API Key（`sk-api-`） |
 | MiniMax Token / Coding Plan 额度 | `GET /v1/token_plan/remains`，Bearer 订阅专用密钥 |
 | OpenCode Go 账户额度 | `GET https://opencode.ai/zen/go/v1/usage`，Bearer 模型 API Key |
+| Z.AI / 智谱 Coding Plan 额度 | `GET /api/monitor/usage/quota/limit`，Authorization 原始套餐 API Key（无 Bearer 前缀） |
 
 OpenRouter（`openrouter`）未设置 baseURL 时，按内置路由使用
 `https://openrouter.ai/api/v1/credits` 查询账户余额；自定义路由通过官方 API 域名识别，
@@ -230,6 +231,64 @@ HTTP / 业务错误报告失败，刷新失败保留上次成功数据。查询�
 [国内套餐说明](https://platform.minimax.cn/docs/token-plan/faq)。
 独立验证：`node .scratch/minimax-harness.mjs`。
 
+Z.AI 国际站（`zai`）与智谱国内站（`zai-coding-cn`）接入
+[官方 GLM Coding Plan 插件的额度接口](https://github.com/zai-org/zai-coding-plugins/blob/main/plugins/glm-plan-usage/skills/usage-query-skill/scripts/query-usage.mjs)。
+内置路由默认分别查询 `api.z.ai` 与 `open.bigmodel.cn` 的
+`/api/monitor/usage/quota/limit`，按官方脚本发送原始 API Key 到 Authorization 头。
+支持 API Key 引用和 `api-key` record，以及官方 OpenAI `/api/coding/paas/v4`
+与 Anthropic `/api/anthropic`（含 `/v1`）地址；国内的 `dev.bigmodel.cn` 也按官方脚本识别。
+显式 Z.AI 代理保留地址与路径前缀，不跨地区重试密钥。
+
+按照[官方额度页面](https://z.ai/manage-apikey/coding-plan/personal/usage)的字段定义，
+`TOKENS_LIMIT` / `CREDIT_LIMIT` 的 `unit=3` 对应 5 小时窗口，`unit=6` 对应周窗口；
+旧套餐 `TIME_LIMIT` 的 `unit=5` 对应 MCP 月额度。优先显示官方 `percentage`（已用百分比），
+只有未返回百分比且存在有效计数时才计算比例；重置时间采用 `nextResetTime` 的毫秒时间戳。
+新版积分与旧版 Token 套餐均显示剩余比例，缺失窗口或重置时间不补零、不推算。
+空响应、HTTP / 业务错误报告失败，刷新失败保留上次成功额度。
+
+普通按量计费 `/api/paas/v4` 的现金余额**不支持自动查询**，提供对应地区控制台入口。
+Coding Plan 额度与现金余额相互独立，不将其换算成金额；部分团队套餐可能无法用模型密钥查询，
+查询失败时提示检查套餐与权限。套餐规则见[官方说明](https://docs.z.ai/devpack/faq)。
+独立验证：`node .scratch/zai-harness.mjs`。
+
+Qwen 的三条内置路由（`qwen-token-plan` 国际站、`qwen-token-plan-cn` 国内站、
+`qwen-token-plan-individual` 国际个人版）均标注为**不支持自动查询**，提供对应地区
+Token Plan 控制台入口。自定义路由识别国内 / 国际 Token Plan、Coding Plan 的
+OpenAI / Anthropic 地址，以及百炼按量付费的 DashScope、业务空间专属域名。
+官方域名优先于内置路由的默认地区；显式 Qwen 代理使用路由默认的控制台入口。
+
+截至 2026-10-04，[官方百炼 CLI 命令契约](https://github.com/modelstudioai/cli/blob/main/skills/bailian-cli/reference/usage.md)
+将 `usage token-plan` 和 `usage coding-plan` 的认证标为 `Console`。
+[认证实现](https://github.com/modelstudioai/cli/blob/main/packages/core/src/auth/resolver.ts)
+要求独立的控制台 `access_token`，无法使用模型 / 套餐 API Key；本插件只使用模型密钥，
+不读取百炼 CLI 配置或接入控制台 Cookie。支持清单明确标记「不支持余额查询」，
+并说明官方 CLI 的额外认证要求，不再显示「尚未接入」。
+
+普通按量付费的阿里云账户余额也不能用模型 API Key 查询。
+[官方账单 API](https://help.aliyun.com/zh/user-center/developer-reference/api-bssopenapi-2017-12-14-overview)
+提供 `QueryAccountBalance`，但需要额外 AccessKey 与账单权限，当前不接入。
+所有上述路由刷新时不读取密钥、不发起余额请求，不将套餐 Credits 或单次请求的 token
+用量当作账户余额。国内 / 国际账号使用各自站点；海外 API 域名无法确定账号站点，
+控制台入口默认指向国际站，可在自己的账号站点查看对应地域。
+独立验证：`node .scratch/qwen-harness.mjs`。
+
+Xiaomi 的四条内置路由（`xiaomi`、`xiaomi-token-plan-cn`、
+`xiaomi-token-plan-sgp`、`xiaomi-token-plan-ams`）均标注为**不支持自动查询**。
+普通 MiMo API 的 `sk-` 密钥对应按量扣费账户，提供
+[账户余额页](https://platform.xiaomimimo.com/console/balance)入口；三个地区的 Token Plan
+使用 `tp-` 套餐密钥，提供[套餐管理页](https://platform.xiaomimimo.com/console/plan-manage)入口。
+账户现金余额与套餐 Credits 相互独立，不把单次请求的 token 用量当作账户剩余额度。
+
+截至 2026-10-04，[官方 API 文档](https://mimo.mi.com/docs/en-US/api/guidance/rate-limit)
+未公开使用模型密钥查询账户余额或套餐额度的接口；控制台内部接口依赖网页登录。
+本插件只使用模型密钥，不接入 Xiaomi 控制台 Cookie。四条内置路由省略 baseURL 时
+仍提供对应入口，自定义路由也可识别 `api.xiaomimimo.com` 与
+`token-plan-{cn,sgp,ams}.xiaomimimo.com` 的 OpenAI / Anthropic 地址。
+卡片与支持清单分别说明普通 API 和套餐的查询限制，刷新时不读取密钥或发起余额请求。
+详情见[官方认证说明](https://mimo.mi.com/docs/en-US/quick-start/faq/api-integration)与
+[支付说明](https://mimo.mi.com/docs/en-US/quick-start/faq/payment)。
+独立验证：`node .scratch/xiaomi-harness.mjs`。
+
 Ant Ling（`ant-ling`）及使用 `api.ant-ling.com` 的自定义路由提供
 [百灵官方控制台](https://chat.ant-ling.com/open)入口，**暂不支持余额与额度自动查询**。
 模型 API Key 无法认证控制台的钱包接口，这些接口依赖网页登录会话，暂不接入。
@@ -274,8 +333,7 @@ Host 半不 import 任何 Harness 内部包（除 `@deepseek-ai/dsh-tools` 的 `
   取的是「主视图保留的会话」（`state.byId[x].retainedBy.mainView > 0`）——
   这个 store 只有 `{ids, byId, phase}`，**没有 `current` 字段**。
 - **不是所有查询都已接入。** 有些供应商未公开账户查询接口；有些已提供接口，但需要
-  管理员密钥、云账单权限或套餐专用凭据，插件尚未接入。智谱的 Coding Plan 用量查询
-  也属于尚未接入，具体范围见「查看支持现状」。
+  管理员密钥、云账单权限或独立控制台认证，插件尚未接入，具体范围见「查看支持现状」。
 - **余额是账户级**，无法按模型拆分；按模型的花费只能靠会话日志估算（本插件不做）。
 - DeepSeek 账号余额会同时出现在 **设置 → 账号**，这里只是并入同一张清单。
 - **只显示真正注册了 adapter 的服务商。** pi-ai 会把整份内置目录都声明出来（`amazon-bedrock`、`openai`、`anthropic`…），这些路由没配置就没有 adapter，`ctx.llm.listModels()` 会抛 `no adapter registered for provider "…"`。本插件默认只保留 `listProviders()`（已注册路由）里的服务商，目录仅用于补充显示名与设置路径；要看全量时把 `includeDormantProviders` 设为 `true`。

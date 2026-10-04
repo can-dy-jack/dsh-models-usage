@@ -29,10 +29,70 @@ export function isAntLingRoute(providerId: string, baseURL: string | undefined):
   return providerId === 'ant-ling' || hostOf(baseURL) === 'api.ant-ling.com'
 }
 
+/** MiMo PAYG and regional Token Plan share a console, but have separate billing. */
+export function xiaomiBillingMode(providerId: string, baseURL: string | undefined): 'api' | 'token-plan' | undefined {
+  const host = hostOf(baseURL)
+  if (host === 'api.xiaomimimo.com') return 'api'
+  if (host !== undefined && /^token-plan-(?:cn|sgp|ams)\.xiaomimimo\.com$/.test(host)) return 'token-plan'
+  if (providerId === 'xiaomi') return 'api'
+  if (['xiaomi-token-plan-cn', 'xiaomi-token-plan-sgp', 'xiaomi-token-plan-ams'].includes(providerId)) return 'token-plan'
+  return undefined
+}
+
+/** Model keys cannot authenticate Bailian's console usage or cloud billing APIs. */
+export function qwenBillingRoute(providerId: string, baseURL: string | undefined):
+  { mode: 'token-plan' | 'coding-plan' | 'api'; region: string } | undefined {
+  const host = hostOf(baseURL)
+  if (host === 'token-plan.cn-beijing.maas.aliyuncs.com') return { mode: 'token-plan', region: 'cn-beijing' }
+  if (host === 'token-plan.ap-southeast-1.maas.aliyuncs.com') return { mode: 'token-plan', region: 'ap-southeast-1' }
+  if (host === 'coding.dashscope.aliyuncs.com') return { mode: 'coding-plan', region: 'cn-beijing' }
+  if (host === 'coding-intl.dashscope.aliyuncs.com') return { mode: 'coding-plan', region: 'ap-southeast-1' }
+  const regions: Record<string, string> = {
+    'dashscope.aliyuncs.com': 'cn-beijing',
+    'dashscope-intl.aliyuncs.com': 'ap-southeast-1',
+    'dashscope-us.aliyuncs.com': 'us-east-1',
+    'cn-hongkong.dashscope.aliyuncs.com': 'cn-hongkong',
+  }
+  if (host !== undefined) {
+    const region = regions[host]
+      ?? (/^token-plan\./.test(host) ? undefined
+        : /^[a-z0-9-]+\.(cn-beijing|ap-southeast-1|us-east-1|cn-hongkong|ap-northeast-1|eu-central-1)\.maas\.aliyuncs\.com$/.exec(host)?.[1])
+    if (region !== undefined) return { mode: 'api', region }
+  }
+  if (providerId === 'qwen-token-plan-cn') return { mode: 'token-plan', region: 'cn-beijing' }
+  if (providerId === 'qwen-token-plan' || providerId === 'qwen-token-plan-individual') {
+    return { mode: 'token-plan', region: 'ap-southeast-1' }
+  }
+  return undefined
+}
+
+/** Official hosts take precedence over a route's default region. */
+export function zaiPlatform(providerId: string, baseURL: string | undefined): 'zai' | 'zai-cn' | undefined {
+  const host = hostOf(baseURL)
+  if (host === 'api.z.ai') return 'zai'
+  if (host === 'open.bigmodel.cn' || host === 'dev.bigmodel.cn') return 'zai-cn'
+  return providerId === 'zai' ? 'zai' : providerId === 'zai-coding-cn' ? 'zai-cn' : undefined
+}
+
 /** Console/usage page a user can open when no balance endpoint exists. */
 export function consoleLink(providerId: string, baseURL: string | undefined): string | undefined {
   const host = hostOf(baseURL)
   if (isAntLingRoute(providerId, baseURL)) return 'https://chat.ant-ling.com/open'
+  const xiaomi = xiaomiBillingMode(providerId, baseURL)
+  if (xiaomi !== undefined) return `https://platform.xiaomimimo.com/console/${xiaomi === 'api' ? 'balance' : 'plan-manage'}`
+  const qwen = qwenBillingRoute(providerId, baseURL)
+  if (qwen !== undefined) {
+    const domestic = qwen.region === 'cn-beijing'
+    const console = `https://${domestic ? 'bailian.console.aliyun.com' : 'modelstudio.console.alibabacloud.com'}/${qwen.region}`
+    return console + (qwen.mode === 'token-plan' ? `/subscription/${domestic ? 'overview' : 'token-plan'}`
+      : qwen.mode === 'coding-plan' ? '/subscription/coding-plan' : '')
+  }
+  const zai = zaiPlatform(providerId, baseURL)
+  if (zai !== undefined) {
+    const coding = zaiUsageTarget(providerId, baseURL) !== undefined
+    return zai === 'zai' ? `https://z.ai/manage-apikey/${coding ? 'coding-plan/personal/usage' : 'billing'}`
+      : `https://bigmodel.cn/usercenter/${coding ? 'glm-coding/usage' : 'proj-mgmt/account'}`
+  }
   if (providerId === 'openrouter' || host === 'openrouter.ai') return 'https://openrouter.ai/settings/credits'
   if (providerId === 'opencode-go' || host === 'opencode.ai') return 'https://opencode.ai/workspace'
   if (kimiUsageURL(providerId, baseURL) !== undefined) {
@@ -64,6 +124,29 @@ export type BalanceTarget =
   | { kind: Exclude<SupportedBalanceQueryKind, 'account' | 'minimax' | 'minimax-cn'>; url: string }
   | { kind: 'minimax' | 'minimax-cn'; url: string; balanceURL: string }
   | { kind: 'unsupported' }
+
+/** Official Coding Plan OpenAI/Anthropic bases; PAYG wallet APIs are not public. */
+export function zaiUsageTarget(providerId: string, baseURL: string | undefined):
+  { kind: 'zai' | 'zai-cn'; url: string } | undefined {
+  const kind = zaiPlatform(providerId, baseURL)
+  if (kind === undefined) return undefined
+  try {
+    const url = new URL(baseURL ?? (kind === 'zai-cn'
+      ? 'https://open.bigmodel.cn/api/coding/paas/v4' : 'https://api.z.ai/api/coding/paas/v4'))
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return undefined
+    const official = ['api.z.ai', 'open.bigmodel.cn', 'dev.bigmodel.cn'].includes(url.hostname)
+    const path = url.pathname.replace(/\/+$/, '')
+    const codingSuffix = /\/api\/(?:coding\/paas\/v4|anthropic(?:\/v1)?)$/
+    if (official ? !/^\/api\/(?:coding\/paas\/v4|anthropic(?:\/v1)?)$/.test(path) : /\/api\/paas\/v4$/.test(path)) return undefined
+    const prefix = official ? '' : codingSuffix.test(path) ? path.replace(codingSuffix, '') : path.replace(/\/v1$/, '')
+    url.pathname = prefix + '/api/monitor/usage/quota/limit'
+    url.search = ''
+    url.hash = ''
+    return { kind, url: url.href }
+  } catch {
+    return undefined
+  }
+}
 
 /** Both model protocols share the account API; explicit proxies retain their prefix. */
 export function minimaxBalanceTarget(providerId: string, baseURL: string | undefined):
@@ -179,6 +262,8 @@ export function openCodeGoUsageURL(providerId: string, baseURL: string | undefin
 export function balanceTarget(providerId: string, baseURL: string | undefined): BalanceTarget {
   if (providerId === ACCOUNT_PROVIDER) return { kind: 'account' }
   if (isAntLingRoute(providerId, baseURL)) return { kind: 'unsupported' }
+  if (xiaomiBillingMode(providerId, baseURL) !== undefined) return { kind: 'unsupported' }
+  if (qwenBillingRoute(providerId, baseURL) !== undefined) return { kind: 'unsupported' }
   const host = hostOf(baseURL)
   if (providerId === OFFICIAL_PROVIDER || (host !== undefined && (host === 'api.deepseek.com' || host.endsWith('.deepseek.com')))) {
     return { kind: 'deepseek', url: `${originOf(baseURL) ?? 'https://api.deepseek.com'}/user/balance` }
@@ -193,6 +278,8 @@ export function balanceTarget(providerId: string, baseURL: string | undefined): 
   if (goURL !== undefined) return { kind: 'opencode-go', url: goURL }
   const minimax = minimaxBalanceTarget(providerId, baseURL)
   if (minimax !== undefined) return minimax
+  const zai = zaiUsageTarget(providerId, baseURL)
+  if (zai !== undefined) return zai
   return { kind: 'unsupported' }
 }
 
