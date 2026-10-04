@@ -7,7 +7,7 @@ DeepSeek Harness 的组合插件（Host + Web Client 双半）：把**当前模�
 
 - 现在的模型列表里到底有哪些 provider / model？（含是否已激活、baseURL、协议、缺少凭据提示）
 - 每个模型的上下文窗口、最大输出、输入模态（text/image）、可用的 reasoning effort。
-- 每个服务商的余额或额度：DeepSeek 开放平台、DeepSeek 账号、Moonshot AI（Kimi 开放平台）、Kimi Code、OpenCode Go 走官方接口；火山方舟等未提供
+- 每个服务商的余额或额度：DeepSeek 开放平台、DeepSeek 账号、Moonshot AI（Kimi 开放平台）、Kimi Code、OpenCode Go、MiniMax 国内 / 国际站走官方接口；火山方舟等未提供
   「用模型密钥查余额」接口的服务商会被**明确标注为不支持**并给出控制台入口，而不是伪造一个 0。
 
 余额永远是**服务商账户级**的，不是模型级：模型 id 只是价格/路由事实，钱包属于它背后的账号。
@@ -178,6 +178,8 @@ Host 和浏览器分别保留一份插件实例内的完整载荷，默认有效
 | 余额 | DeepSeek 开放平台 `GET /user/balance`；DeepSeek 账号 `ctx.deepseekAccount.getBalance()`；OpenRouter `/api/v1/credits` |
 | Kimi Code 账户额度与加油包 | `GET https://api.kimi.com/coding/v1/usages`（海外 `api.kimi.ai`），Bearer 模型 API Key |
 | Moonshot AI / Kimi 开放平台账户余额 | `GET https://api.moonshot.cn/v1/users/me/balance`（国际站 `api.moonshot.ai`），Bearer 模型 API Key |
+| MiniMax 国内 / 国际账户余额 | `GET /account/query_balance`，Bearer 普通 API Key（`sk-api-`） |
+| MiniMax Token / Coding Plan 额度 | `GET /v1/token_plan/remains`，Bearer 订阅专用密钥 |
 | OpenCode Go 账户额度 | `GET https://opencode.ai/zen/go/v1/usage`，Bearer 模型 API Key |
 
 OpenRouter（`openrouter`）未设置 baseURL 时，按内置路由使用
@@ -206,6 +208,27 @@ API 账户，与 Kimi Code 的订阅额度分开。展示官方返回的可用�
 现金余额可以为负，可用余额直接采用接口值；缺失明细不补零，无法识别的响应或错误状态
 报告失败，刷新失败保留上次成功余额。官方文档：[国内站](https://platform.moonshot.cn/docs/api/balance)、
 [国际站](https://platform.moonshot.ai/docs/api/balance)。
+
+MiniMax（`minimax`）与 MiniMax CN（`minimax-cn`）覆盖国内 / 国际站的两类查询，
+沿用[官方 CLI 的密钥选择规则](https://github.com/MiniMax-AI/cli/blob/main/src/client/endpoints.ts)：
+普通 `sk-api-` 密钥读取账户可用余额及现金、代金券、授信、欠款明细；订阅密钥读取
+Token / Coding Plan 额度。余额直接采用 `available_amount`，不再次加减明细，
+国内显示 CNY，国际显示 USD；不把套餐额度换算成现金余额。
+
+未设置 baseURL 时，国际使用 `https://api.minimax.io`，国内使用
+`https://api.minimaxi.com`。自定义路由识别官方域名的 OpenAI（`/v1`）和
+Anthropic（`/anthropic`、`/anthropic/v1`）地址，包括国内新域名 `api.minimax.cn`；
+显式 MiniMax 代理保留地址与路径前缀。支持 API Key 引用和 `api-key` record，
+不跨地区尝试密钥，也不调用需要网页登录的旧控制台接口。
+
+套餐优先使用官方 `*_remaining_percent`，兼容旧版计数格式（旧 `usage_count` 实际是剩余量）；
+有百分比时仅保留与其一致的计数，避免新版 `0/0` 导致误报。资源池分别标注，显示
+窗口剩余比例、毫秒时间戳 / 倒计时映射的重置时间、周额度加成和不限量状态。
+HTTP / 业务错误报告失败，刷新失败保留上次成功数据。查询规范见
+[官方响应类型](https://github.com/MiniMax-AI/cli/blob/main/src/types/api.ts)、
+[国际套餐说明](https://platform.minimax.io/docs/token-plan/faq)与
+[国内套餐说明](https://platform.minimax.cn/docs/token-plan/faq)。
+独立验证：`node .scratch/minimax-harness.mjs`。
 
 Ant Ling（`ant-ling`）及使用 `api.ant-ling.com` 的自定义路由提供
 [百灵官方控制台](https://chat.ant-ling.com/open)入口，**暂不支持余额与额度自动查询**。

@@ -7,6 +7,8 @@ export const SUPPORTED_BALANCE_QUERIES = [
   { id: 'moonshot', providers: ['moonshotai'], name: 'supportMoonshot', statusLabel: 'supportBalanceReady', details: 'supportMoonshotBalanceDetails', credential: 'supportApiKey', documentation: 'https://platform.moonshot.ai/docs/api/balance' },
   { id: 'moonshot-cn', providers: ['moonshotai-cn'], name: 'supportMoonshotCn', statusLabel: 'supportBalanceReady', details: 'supportMoonshotCnBalanceDetails', credential: 'supportApiKey', documentation: 'https://platform.moonshot.cn/docs/api/balance' },
   { id: 'opencode-go', providers: ['opencode-go'], name: 'supportOpenCodeGo', statusLabel: 'supportUsageReady', details: 'supportOpenCodeGoDetails', credential: 'supportGoApiKey' },
+  { id: 'minimax', providers: ['minimax'], name: 'supportMinimax', statusLabel: 'supportBalanceUsageReady', details: 'supportMinimaxDetails', credential: 'supportMinimaxKey', documentation: 'https://github.com/MiniMax-AI/cli/blob/main/src/client/endpoints.ts' },
+  { id: 'minimax-cn', providers: ['minimax-cn'], name: 'supportMinimaxCn', statusLabel: 'supportBalanceUsageReady', details: 'supportMinimaxCnDetails', credential: 'supportMinimaxKey', documentation: 'https://github.com/MiniMax-AI/cli/blob/main/src/client/endpoints.ts' },
 ] as const
 
 export type SupportedBalanceQueryKind = typeof SUPPORTED_BALANCE_QUERIES[number]['id']
@@ -59,8 +61,6 @@ export const BUILTIN_PROVIDER_QUERY_SUPPORT: readonly ProviderQuerySupport[] = [
   noPublicApi('groq', 'Groq', 'https://console.groq.com/docs/billing-faqs'),
   noPublicApi('huggingface', 'Hugging Face', 'https://huggingface.co/docs/hub/billing'),
   noPublicApi('meta', 'Meta', 'https://dev.meta.ai/help/usage-and-limits/api-usage'),
-  pending('minimax', 'MiniMax', 'supportMinimaxUsageDetails', 'https://platform.minimax.io/subscribe/coding-plan'),
-  pending('minimax-cn', 'MiniMax CN', 'supportMinimaxUsageDetails', 'https://platform.minimaxi.com/subscribe/coding-plan'),
   pending('mistral', 'Mistral', 'supportMistralUsageDetails', 'https://docs.mistral.ai/admin/admin-api/usage-metrics'),
   noPublicApi('nvidia', 'NVIDIA', 'https://docs.api.nvidia.com/'),
   pending('openai', 'OpenAI', 'supportOpenaiUsageDetails', 'https://platform.openai.com/docs/api-reference/usage'),

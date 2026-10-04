@@ -6,6 +6,12 @@ import type { Translate } from '../i18n'
 import { currencySymbol, formatAmount, formatLocalDateTime, formatPercent } from '../format'
 
 export function quotaLabel(entry: QuotaWindow, t: Translate): string {
+  if (entry.period) {
+    const period = entry.period === 'five-hour' && entry.windowSeconds && entry.windowSeconds !== 18000
+      ? t('quotaWindow', { hours: entry.windowSeconds / 3600 }) : t('quota-' + entry.period)
+    const scope = entry.scope === 'general' ? t('quotaScopeGeneral') : entry.scope === 'video' ? t('quotaScopeVideo') : entry.scope
+    return scope ? t('quotaScope', { scope, period }) : period
+  }
   if (['five-hour', 'weekly', 'monthly', 'month-total', 'month-code'].includes(entry.id)) return t('quota-' + entry.id)
   if (entry.name) return entry.name
   if (entry.windowSeconds) return t('quotaWindow', { hours: entry.windowSeconds / 3600 })
@@ -17,7 +23,8 @@ function QuotaLine(props: { quota: QuotaWindow; t: Translate }) {
   const remaining = Math.max(0, Math.min(100, entry.remainingPercent))
   const level = remaining >= 50 ? 'high' : remaining >= 20 ? 'medium' : 'low'
   const label = quotaLabel(entry, props.t)
-  const remainingText = props.t('quotaRemaining', { percent: formatPercent(remaining) })
+  const remainingText = entry.unlimited ? props.t('quotaUnlimited')
+    : props.t('quotaRemaining', { percent: formatPercent(Math.max(0, entry.remainingPercent)) })
   const resetAt = entry.resetAt ? new Date(entry.resetAt) : undefined
   return (
     <div className="dmu-quota" data-level={level}>
@@ -25,12 +32,12 @@ function QuotaLine(props: { quota: QuotaWindow; t: Translate }) {
         <span>{label}</span>
         <span className="dmu-amount">{remainingText}</span>
       </div>
-      <div
+      {entry.unlimited ? null : <div
         className="dmu-quotaProgress" role="progressbar" aria-label={label}
         aria-valuemin={0} aria-valuemax={100} aria-valuenow={remaining} aria-valuetext={remainingText}
       >
         <span className="dmu-quotaProgressFill" style={{ width: remaining + '%' }} />
-      </div>
+      </div>}
       {resetAt && Number.isFinite(resetAt.getTime())
         ? <time className="dmu-muted" dateTime={entry.resetAt} title={resetAt.toLocaleString(undefined, { timeZoneName: 'short' })}>
             {props.t('quotaReset', { time: formatLocalDateTime(resetAt) })}
@@ -48,6 +55,12 @@ function WalletLine(props: { wallet: Wallet; t: Translate }) {
   }
   if (wallet.voucher !== undefined) {
     parts.push(props.t('voucherBalance', { amount: currencySymbol(wallet.currency) + formatAmount(wallet.voucher) }))
+  }
+  if (wallet.credit !== undefined) {
+    parts.push(props.t('creditBalance', { amount: currencySymbol(wallet.currency) + formatAmount(wallet.credit) }))
+  }
+  if (wallet.owed !== undefined) {
+    parts.push(props.t('owedAmount', { amount: currencySymbol(wallet.currency) + formatAmount(wallet.owed) }))
   }
   if (wallet.toppedUp !== undefined && String(wallet.toppedUp).length > 0) {
     parts.push(props.t('toppedUp', { amount: currencySymbol(wallet.currency) + formatAmount(wallet.toppedUp) }))

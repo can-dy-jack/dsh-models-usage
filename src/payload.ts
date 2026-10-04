@@ -45,6 +45,8 @@ export type Wallet = {
   /** Moonshot reports cash (possibly debt) and vouchers separately. */
   cash?: string
   voucher?: string
+  credit?: string
+  owed?: string
   kind: string
 }
 
@@ -60,6 +62,10 @@ export type BalanceStatus =
 export type QuotaWindow = {
   id: string
   name?: string
+  /** Resource pools can have separate windows within the same account. */
+  scope?: string
+  period?: 'five-hour' | 'weekly'
+  unlimited?: boolean
   windowSeconds?: number
   usedPercent: number
   remainingPercent: number

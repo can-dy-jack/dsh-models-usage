@@ -11,6 +11,7 @@ import type { DeepseekAccountService, ServiceLookup } from './context'
 import { balanceTarget, consoleLink, isAntLingRoute } from './links'
 import { parseKimiUsage } from './kimi'
 import { parseMoonshotBalance } from './moonshot'
+import { parseMiniMaxBalance, parseMiniMaxUsage } from './minimax'
 import { parseOpenCodeGoUsage } from './opencode'
 import { clientMetadata, requestJson } from './net'
 import type { PluginOptions } from './options'
@@ -67,7 +68,8 @@ export async function providerBalance(
     }
   }
   const credentialLabel = label ?? (target.kind === 'openrouter' ? 'OpenRouter API Key'
-    : target.kind === 'moonshot' || target.kind === 'moonshot-cn' ? 'Moonshot API Key' : undefined)
+    : target.kind === 'moonshot' || target.kind === 'moonshot-cn' ? 'Moonshot API Key'
+    : target.kind === 'minimax' || target.kind === 'minimax-cn' ? 'MiniMax API / Subscription Key' : undefined)
   if (credentialLabel === undefined) {
     return { status: 'unsupported', message: '未声明凭据引用，无法查询余额', link: consoleLink(providerId, baseURL) }
   }
@@ -75,17 +77,29 @@ export async function providerBalance(
   if (key === undefined || key.length === 0) {
     return { status: 'no-credential', message: `未配置 ${credentialLabel}`, link: consoleLink(providerId, baseURL) }
   }
-  const headers = { Authorization: `Bearer ${key}`, Accept: 'application/json' }
-  const response = await requestJson(service, target.url, headers, signal)
+  const minimax = target.kind === 'minimax' || target.kind === 'minimax-cn'
+  // Use the official CLI's key-type selection; never probe a different region.
+  const minimaxAccount = minimax && key.startsWith('sk-api-')
+  const endpoint = minimaxAccount ? target.balanceURL : target.url
+  const headers = { Authorization: `Bearer ${key}`, Accept: 'application/json', ...(minimax ? { 'Content-Type': 'application/json' } : {}) }
+  const response = await requestJson(service, endpoint, headers, signal)
   if (response.ok !== true) {
     const message = target.kind === 'opencode-go' && response.status === 403
       ? 'OpenCode Go 拒绝额度查询，请检查订阅状态及 API Key 是否关联订阅 (HTTP 403)'
       : target.kind === 'openrouter' && response.status === 403
         ? 'OpenRouter 拒绝余额查询，请确认 API Key 有账户余额查询权限（官方文档要求管理密钥）(HTTP 403)'
+      : minimax && (response.status === 401 || response.status === 403)
+        ? `MiniMax 拒绝查询，请检查密钥类型及国内/国际地区是否匹配 (HTTP ${response.status})`
       : response.error
     return { status: 'failed', message, link: consoleLink(providerId, baseURL) }
   }
   const data = response.data
+  if (minimax) {
+    return {
+      ...(minimaxAccount ? parseMiniMaxBalance(data, target.kind === 'minimax-cn' ? 'CNY' : 'USD') : parseMiniMaxUsage(data)),
+      endpoint, link: consoleLink(providerId, baseURL),
+    }
+  }
   if (target.kind === 'kimi-coding') {
     return { ...parseKimiUsage(data), endpoint: target.url, link: consoleLink(providerId, baseURL) }
   }

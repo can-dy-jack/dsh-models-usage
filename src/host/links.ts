@@ -44,6 +44,11 @@ export function consoleLink(providerId: string, baseURL: string | undefined): st
       ? 'https://platform.moonshot.cn/console/info'
       : 'https://platform.moonshot.ai/console/info'
   }
+  const minimax = minimaxBalanceTarget(providerId, baseURL)
+  if (minimax !== undefined) {
+    return minimax.kind === 'minimax-cn' ? 'https://platform.minimax.cn/user-center/payment/token-plan'
+      : 'https://platform.minimax.io/user-center/payment/token-plan'
+  }
   if (host !== undefined) {
     if (host.endsWith('volces.com')) return 'https://console.volcengine.com/ark'
     if (host.endsWith('bigmodel.cn')) return 'https://bigmodel.cn/usercenter/proj-mgmt/account'
@@ -56,8 +61,34 @@ export function consoleLink(providerId: string, baseURL: string | undefined): st
 
 export type BalanceTarget =
   | { kind: 'account' }
-  | { kind: Exclude<SupportedBalanceQueryKind, 'account'>; url: string }
+  | { kind: Exclude<SupportedBalanceQueryKind, 'account' | 'minimax' | 'minimax-cn'>; url: string }
+  | { kind: 'minimax' | 'minimax-cn'; url: string; balanceURL: string }
   | { kind: 'unsupported' }
+
+/** Both model protocols share the account API; explicit proxies retain their prefix. */
+export function minimaxBalanceTarget(providerId: string, baseURL: string | undefined):
+  { kind: 'minimax' | 'minimax-cn'; url: string; balanceURL: string } | undefined {
+  const routeKind = providerId === 'minimax-cn' ? 'minimax-cn' : providerId === 'minimax' ? 'minimax' : undefined
+  if (baseURL === undefined && routeKind === undefined) return undefined
+  try {
+    const url = new URL(baseURL ?? (routeKind === 'minimax-cn' ? 'https://api.minimaxi.com' : 'https://api.minimax.io'))
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return undefined
+    const officialKind = url.hostname === 'api.minimax.io' ? 'minimax'
+      : url.hostname === 'api.minimaxi.com' || url.hostname === 'api.minimax.cn' ? 'minimax-cn' : undefined
+    const kind = officialKind ?? routeKind
+    if (kind === undefined) return undefined
+    const path = url.pathname.replace(/\/+$/, '')
+    const prefix = officialKind !== undefined ? '' : path.replace(/\/(?:anthropic(?:\/v1)?|v1)$/, '')
+    url.search = ''
+    url.hash = ''
+    url.pathname = prefix + '/account/query_balance'
+    const balanceURL = url.href
+    url.pathname = prefix + '/v1/token_plan/remains'
+    return { kind, url: url.href, balanceURL }
+  } catch {
+    return undefined
+  }
+}
 
 /** Built-in routes can omit their default base; explicit proxies keep their origin and prefix. */
 export function openRouterCreditsURL(providerId: string, baseURL: string | undefined): string | undefined {
@@ -160,6 +191,8 @@ export function balanceTarget(providerId: string, baseURL: string | undefined): 
   if (moonshot !== undefined) return moonshot
   const goURL = openCodeGoUsageURL(providerId, baseURL)
   if (goURL !== undefined) return { kind: 'opencode-go', url: goURL }
+  const minimax = minimaxBalanceTarget(providerId, baseURL)
+  if (minimax !== undefined) return minimax
   return { kind: 'unsupported' }
 }
 

@@ -17,6 +17,7 @@ TypeScript 源码（`src/`）→ esbuild 转译产物（`lib/`，gitignored）�
 | `src/balance-support.ts` | 已接入查询的共享清单，供 Host 端点类型和顶部支持查询弹窗使用；新供应商须同步添加。 |
 | `src/host/kimi.ts` / `src/host/opencode.ts` | Kimi Code / OpenCode Go 官方额度响应解析；百分比和重置时间统一映射到 `QuotaWindow`。 |
 | `src/host/moonshot.ts` | Moonshot AI / Kimi 开放平台按用量扣费账户的余额响应解析；可用余额、现金和代金券直接采用官方值，国内 CNY / 国际 USD。 |
+| `src/host/minimax.ts` | MiniMax 国内 / 国际账户余额及 Token / Coding Plan 额度解析；按官方 CLI 的密钥类型选择接口，兼容旧计数、新百分比、资源池、周加成及不限量。 |
 | `src/cache.ts` | 两半共享的 60s 缓存/15s 重试策略、summary 投影、查询失败时保留旧余额。前端缓存属于插件实例，切换面板/会话不清空；`refresh` 绕过缓存。 |
 | `tools/build.mjs` | esbuild **bundle**：`src/index.ts`→`lib/index.js`（node, esm, `external: @deepseek-ai/*`）、`src/client.ts`→`lib/client.js`（browser, **iife**——产物以 script 方式执行，绝不能残留 import/export）。`--watch` 可用。 |
 | `tsconfig.json` | 只做 `tsc --noEmit`（strict）；产物由 esbuild 出。 |
@@ -85,6 +86,7 @@ node .scratch/cache-harness.mjs    # mock 服务/Remote/时钟验证缓存、并
 node .scratch/filter-harness.mjs   # 纯筛选函数 + 实际 client bundle 验证搜索、弹窗、条件保留与请求次数
 node .scratch/opencode-harness.mjs # OpenCode Go 响应契约、路由、凭据、错误、单供应商刷新及额度展示
 node .scratch/moonshot-harness.mjs # Moonshot 地区与币种、余额响应、凭据、单供应商刷新及现金/代金券展示
+node .scratch/minimax-harness.mjs  # MiniMax 地区/协议、账户/套餐、百分比/旧计数、凭据、单供应商刷新及中英文展示
 node .scratch/verify.mjs [marker]  # 对比宿主实际下发的 client.js 与工作区 lib/ 是否一致（需宿主在跑）
 ```
 
