@@ -1,3 +1,6 @@
 node_modules/
 lib/
 .scratch/chrome-profile/
+.scratch/.ref/
+*.tgz
+.DS_Store

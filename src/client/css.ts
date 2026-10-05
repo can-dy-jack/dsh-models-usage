@@ -1,6 +1,6 @@
 /** Panel styles; reuse the same <style> tag across module revisions. */
 
-const CSS_ID = '@local/dsh-models-usage/client.css'
+const CSS_ID = 'dsh-models-usage/client.css'
 
 const CSS = `
 .dmu-page{position:relative;box-sizing:border-box;height:100%;min-height:0;min-width:0;display:flex;flex-direction:column;overflow:hidden;container:dmu-page / inline-size;color:var(--dsw-alias-label-primary);font-size:13px;line-height:1.5}
@@ -193,7 +193,7 @@ export function ensureStyle(): void {
     if (existing.textContent !== CSS) existing.textContent = CSS
   } else {
     const tag = document.createElement('style')
-    tag.dataset.plugin = '@local/dsh-models-usage'
+    tag.dataset.plugin = 'dsh-models-usage'
     tag.dataset.pluginCss = CSS_ID
     tag.textContent = CSS
     document.head.appendChild(tag)

@@ -58,14 +58,33 @@ Kimi Code 的独立验证：`node .scratch/kimi-harness.mjs`，覆盖接口格�
 
 ## 安装
 
-先执行 `npm run build` 产出 `lib/`，然后侧边栏 **Plugins → Add plugin**，填入本目录的
-绝对路径：
+### 从 npm 安装
 
-```
-/Users/chenkeheng/project-code/dsh-models-usage
+```sh
+dsh plugin add dsh-models-usage
+# 或指定 profile
+dsh plugin --profile web add dsh-models-usage
 ```
 
-安装后打开该 bundle 的开关 **Enable now**。
+也可以在侧边栏 **Plugins → Add plugin** 中填入包名 `dsh-models-usage`，安装后打开开关 **Enable now**。
+
+### 从源码安装（开发）
+
+先执行 `npm install --legacy-peer-deps && npm run build` 产出 `lib/`，然后侧边栏
+**Plugins → Add plugin**，填入本目录的绝对路径，安装后打开该 bundle 的开关 **Enable now**。
+
+> 本地路径安装会以 `@local/dsh-models-usage` 的名字装入 profile，而 `cordis.patch.yml`
+> 与客户端模块 id 按 npm 包名写作 `dsh-models-usage`。若本地路径安装后插件未激活，
+> 可改用 `npm pack` 生成的 tgz，或临时把这三处名字改回 `@local/dsh-models-usage`
+> （`cordis.patch.yml`、`src/client.tsx`、`src/client/css.ts`）。
+
+## 发布
+
+```sh
+npm run typecheck && npm run build   # prepublishOnly 也会自动执行
+npm pack --dry-run                   # 确认包内只有 lib/*.js、locale、cordis.patch.yml 等
+npm publish
+```
 
 ### ⚠️ 安装副本是硬链接快照，改完源码必须同步
 
@@ -92,7 +111,7 @@ mkdir -p "$P/lib" && cp lib/index.js lib/client.js "$P/lib/" && cp package.json 
 客户端产物一致也不代表 Host 已加载新模块：当前 Desktop profile 的宿主会缓存模块，
 重新开关插件仍可能复用旧代码；面板刷新后仍是旧行为时，重启一次 Harness 再验证。
 
-> 本 bundle 声明 `@local/dsh-models-usage`，`cordis.patch.yml` 插入的 row id 是
+> 本 bundle 声明 `dsh-models-usage`，`cordis.patch.yml` 插入的 row id 是
 > `models-usage`。它是 host+client 双半插件：`lib/index.js`（编自 `src/index.ts`）
 > 在 Host 进程负责采集与查询，`dsh.client` 声明让 `lib/client.js`（编自
 > `src/client.ts`）在 Web GUI 挂载 UI。
@@ -361,3 +380,7 @@ Host 半不 import 任何 Harness 内部包（除 `@deepseek-ai/dsh-tools` 的 `
   `command/done` 事件；这些行在界面上被隐藏（副作用是手敲同名命令的行也会被隐藏）。
 - pi-ai 的 OAuth/交互式凭据存放在 record 里：只有 `kind: 'api-key'` 的 record 能用于
   余额查询，`grant` 类型无法用于余额接口。
+
+## 许可证
+
+[MIT](./LICENSE)

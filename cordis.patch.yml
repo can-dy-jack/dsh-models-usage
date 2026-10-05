@@ -4,5 +4,5 @@
 # package.json makes the browser half (`exports["./client"]`) load in the Web GUI.
 - insert:
     - id: models-usage
-      name: '@local/dsh-models-usage'
+      name: dsh-models-usage
       config: {}

@@ -1,28 +1,58 @@
 {
-  "name": "@local/dsh-models-usage",
+  "name": "dsh-models-usage",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
   "type": "module",
   "description": "模型清单与余额管理：列出当前模型列表中的全部 provider / 模型及其可查到的余额信息",
+  "keywords": [
+    "deepseek",
+    "harness",
+    "dsh",
+    "dsh-plugin",
+    "models",
+    "usage",
+    "balance",
+    "quota"
+  ],
+  "author": "can-dy-jack <jjack_chen3@163.com>",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/can-dy-jack/dsh-models-usage.git"
+  },
+  "homepage": "https://github.com/can-dy-jack/dsh-models-usage#readme",
+  "bugs": {
+    "url": "https://github.com/can-dy-jack/dsh-models-usage/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "engines": {
+    "node": ">=22"
+  },
   "main": "lib/index.js",
   "exports": {
     ".": "./lib/index.js",
     "./client": "./lib/client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json",
     "./locale/*.json": "./locale/*.json"
   },
   "files": [
-    "lib",
+    "lib/*.js",
     "cordis.patch.yml",
     "locale",
     "icon.svg",
-    "README.md"
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "build": "node tools/build.mjs",
     "dev": "node tools/build.mjs --watch",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run typecheck && npm run build"
   },
   "meta": {
     "title": "模型用量与余额",

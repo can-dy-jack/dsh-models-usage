@@ -59,6 +59,9 @@ TSX 用 classic transform（`React.createElement`/`React.Fragment`），`React`
   （README 有 `cmp`/`cp` 循环）。客户端脚本的 rev 与 Host 模块加载是两回事：
   Desktop Host 会缓存 `lib/index.js`，改动 Host 接口后必须重启 Harness；
   仅重新加载客户端或开关插件可能仍调用旧接口。单供应商刷新应实际验证返回载荷只有目标服务商。
+- **插件名 = npm 包名 `dsh-models-usage`**：`cordis.patch.yml` 的 `name`、`src/client.tsx` 的
+  `__ModuleLoader__.load` id / 返回的 `name`、`src/client/css.ts` 必须一致；本地路径安装会被
+  装成 `@local/dsh-models-usage`，与发布名不同。发布前 `npm pack --dry-run` 确认包内容。
 - **`peerDependencies` 不可删**：本地路径安装走 `link:` 软链 → `linked` 解析分层，
   只拦截 `peerDependencies` 里声明过的 `@deepseek-ai/*` 包名。删掉会
   `failed to import`。

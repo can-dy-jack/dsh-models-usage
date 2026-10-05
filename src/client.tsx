@@ -40,7 +40,7 @@ import { ModelsUsagePanel } from './client/ui/panel'
 import type { ClientContext, ModuleRequire, SessionRow, SessionStore } from './client/context'
 
 window.__ModuleLoader__.load({
-  id: '@local/dsh-models-usage',
+  id: 'dsh-models-usage',
   factory(require: ModuleRequire) {
     initReact(require('react'))
     ensureStyle()
@@ -117,6 +117,6 @@ window.__ModuleLoader__.load({
       ))
     }
 
-    return { name: '@local/dsh-models-usage', inject, apply }
+    return { name: 'dsh-models-usage', inject, apply }
   },
 })

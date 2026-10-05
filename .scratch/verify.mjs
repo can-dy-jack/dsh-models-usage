@@ -32,7 +32,7 @@ const get = async (path) => {
 }
 
 const root = await get('/')
-const row = /{"id":"@local\/dsh-models-usage","url":"([^"]+)"[^}]*"rev":"([^"]+)"/.exec(root.text)
+const row = /{"id":"(?:@local\/)?dsh-models-usage","url":"([^"]+)"[^}]*"rev":"([^"]+)"/.exec(root.text)
 if (row === null) throw new Error('the bundle is not in the live boot graph')
 const served = await get('/' + row[1])
 const local = readFileSync(new URL('lib/client.js', workspace), 'utf8')
