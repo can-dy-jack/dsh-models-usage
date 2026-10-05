@@ -1,6 +1,6 @@
 {
   "name": "dsh-models-usage",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": false,
   "type": "module",
   "description": "模型清单与余额管理：列出当前模型列表中的全部 provider / 模型及其可查到的余额信息",
